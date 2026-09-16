@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: infobez-itmo
+  datasource:
+    # Встроенная H2 в памяти: данные живут, пока запущено приложение.
+    url: jdbc:h2:mem:infobez;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+  h2:
+    console:
+      enabled: false   # web-консоль БД наружу не открываем
+
+app:
+  jwt:
+    # Секрет только из переменной окружения, значения по умолчанию нет.
+    secret: ${JWT_SECRET}
+    issuer: infobez-itmo
+    ttl: 15m
+  demo:
+    admin-password: ${DEMO_ADMIN_PASSWORD}
+    user-password: ${DEMO_USER_PASSWORD}
+
+server:
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never

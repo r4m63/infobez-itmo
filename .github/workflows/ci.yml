@@ -1,0 +1,153 @@
+name: CI
+
+# Проверки запускаются автоматически при каждом push и pull request.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  MAVEN_ARGS: -B -ntp
+
+jobs:
+  build-test:
+    name: Build & tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up JDK 25
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - name: Build and run tests
+        run: ./mvnw $MAVEN_ARGS verify
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: surefire-reports
+          path: target/surefire-reports/
+          if-no-files-found: ignore
+
+  sast-spotbugs:
+    name: SAST — SpotBugs + Find Security Bugs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up JDK 25
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      # Статический анализ байткода. Job падает при любой проблеме уровня Medium и выше.
+      - name: Run SpotBugs with Find Security Bugs rules
+        run: ./mvnw $MAVEN_ARGS -DskipTests compile spotbugs:spotbugs spotbugs:check
+      - name: Write SpotBugs summary
+        if: always()
+        run: |
+          COUNT=$(grep -c '<BugInstance' target/spotbugsXml.xml || true)
+          echo "### SpotBugs + Find Security Bugs" >> "$GITHUB_STEP_SUMMARY"
+          echo "Найдено проблем (threshold Medium, effort Max): **${COUNT:-0}**" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload SpotBugs report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: spotbugs-report
+          path: |
+            target/spotbugsXml.xml
+            target/site/spotbugs.html
+          if-no-files-found: ignore
+
+  sca-dependency-check:
+    name: SCA — OWASP Dependency-Check
+    runs-on: ubuntu-latest
+    env:
+      NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up JDK 25
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      # Локальная копия базы NVD кэшируется между запусками.
+      - name: Cache NVD database
+        if: env.NVD_API_KEY != ''
+        uses: actions/cache@v5
+        with:
+          path: ~/.m2/repository/org/owasp/dependency-check-data
+          key: nvd-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: nvd-${{ runner.os }}-
+      # Job падает при CVSS >= 7 (failBuildOnCVSS в pom.xml).
+      # NVD API с GitHub-раннеров без ключа не отвечает (rate limit), поэтому нужен секрет NVD_API_KEY:
+      # бесплатно выдаётся на https://nvd.nist.gov/developers/request-an-api-key,
+      # добавляется в Settings -> Secrets and variables -> Actions.
+      - name: Run OWASP Dependency-Check
+        if: env.NVD_API_KEY != ''
+        run: ./mvnw $MAVEN_ARGS -DskipTests -Dnvd.api.key="$NVD_API_KEY" dependency-check:check
+      - name: Write Dependency-Check summary
+        if: always() && env.NVD_API_KEY != ''
+        run: |
+          echo "### OWASP Dependency-Check" >> "$GITHUB_STEP_SUMMARY"
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json, collections
+          r = json.load(open('target/dependency-check-report.json'))
+          deps = r['dependencies']
+          sev = collections.Counter(v['severity'].upper() for d in deps for v in d.get('vulnerabilities', []))
+          print(f"Проверено зависимостей: **{len(deps)}**, уязвимостей: **{sum(sev.values())}** {dict(sev) if sev else ''}")
+          PY
+      - name: NVD_API_KEY is not configured
+        if: env.NVD_API_KEY == ''
+        run: |
+          echo "::warning::Секрет NVD_API_KEY не задан — шаг OWASP Dependency-Check пропущен. SCA выполняет Trivy."
+          echo "### OWASP Dependency-Check" >> "$GITHUB_STEP_SUMMARY"
+          echo "Пропущен: секрет NVD_API_KEY не задан." >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload Dependency-Check report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: dependency-check-report
+          path: |
+            target/dependency-check-report.html
+            target/dependency-check-report.json
+          if-no-files-found: ignore
+
+  sca-trivy:
+    name: SCA — Trivy (dependencies & secrets)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      # Второй SCA-сканер: не требует ключей, использует собственную базу уязвимостей.
+      # Job падает при HIGH/CRITICAL уязвимостях в зависимостях, найденных секретах или мисконфигурациях.
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: table
+          output: trivy-report.txt
+      - name: Show Trivy report
+        if: always()
+        run: |
+          cat trivy-report.txt
+          echo "### Trivy" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat trivy-report.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload Trivy report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: trivy-report
+          path: trivy-report.txt
