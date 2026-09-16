@@ -1,0 +1,122 @@
+name: CI
+
+# Проверки запускаются при каждом push и при каждом pull request.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  MAVEN_ARGS: -B -ntp
+
+jobs:
+  build-test:
+    name: Build & tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      # Интеграционные тесты поднимают PostgreSQL через Testcontainers (Docker есть на runner-е).
+      - name: Build and run tests
+        run: ./mvnw $MAVEN_ARGS verify
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: target/surefire-reports/
+          if-no-files-found: ignore
+
+  sast-spotbugs:
+    name: SAST — SpotBugs + Find Security Bugs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      # Статический анализ байткода. Сборка падает при любой найденной проблеме уровня Medium и выше.
+      - name: Run SpotBugs with Find Security Bugs rules
+        run: ./mvnw $MAVEN_ARGS -DskipTests compile spotbugs:check
+
+      - name: Upload SpotBugs report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spotbugs-report
+          path: |
+            target/spotbugsXml.xml
+            target/spotbugs.html
+          if-no-files-found: ignore
+
+  sca-dependency-check:
+    name: SCA — OWASP Dependency-Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      # Локальная копия базы NVD кэшируется между запусками, иначе каждый запуск скачивает её заново.
+      - name: Cache NVD database
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/owasp/dependency-check-data
+          key: nvd-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: nvd-${{ runner.os }}-
+
+      # Сборка падает при CVSS >= 7 (High / Critical), см. failBuildOnCVSS в pom.xml.
+      # NVD_API_KEY (опционально) ускоряет скачивание базы; без ключа скан тоже работает, но медленнее.
+      - name: Run OWASP Dependency-Check
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: ./mvnw $MAVEN_ARGS -DskipTests -Dnvd.api.key="$NVD_API_KEY" dependency-check:check
+
+      - name: Upload Dependency-Check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: |
+            target/dependency-check-report.html
+            target/dependency-check-report.json
+          if-no-files-found: ignore
+
+  sca-trivy:
+    name: SCA — Trivy (dependencies & secrets)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Второй, независимый SCA-сканер: не требует API-ключей, использует свою базу уязвимостей.
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: table

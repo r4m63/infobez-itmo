@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter xmlns="https://github.com/spotbugs/filter/3.0.0">
+    <!--
+        CSRF-токены неприменимы к stateless REST API: сессий и cookie нет,
+        аутентификация идёт по заголовку Authorization, который браузер
+        не подставляет автоматически при cross-site запросах.
+    -->
+    <Match>
+        <Class name="com.itmo.infobez.config.SecurityConfig"/>
+        <Bug pattern="SPRING_CSRF_PROTECTION_DISABLED"/>
+    </Match>
+
+    <!-- Информационные маркеры Find Security Bugs, не являющиеся дефектами. -->
+    <Match>
+        <Bug pattern="SPRING_ENDPOINT"/>
+    </Match>
+</FindBugsFilter>

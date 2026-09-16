@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+    <!--
+        Сюда добавляются обоснованные исключения ложных срабатываний.
+        Каждая запись должна содержать <notes> с причиной и датой пересмотра.
+        Пример:
+        <suppress until="2026-12-31Z">
+            <notes>CVE относится к серверной части библиотеки, которая не используется.</notes>
+            <packageUrl regex="true">^pkg:maven/com\.example/lib@.*$</packageUrl>
+            <cve>CVE-0000-00000</cve>
+        </suppress>
+    -->
+</suppressions>
