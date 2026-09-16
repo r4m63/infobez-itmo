@@ -16,6 +16,8 @@
 
     <properties>
         <java.version>25</java.version>
+        <!-- Переопределение версии из Spring Boot BOM: 11.0.24 содержит CVE-2026-65182/65905/68525 (найдено Trivy). -->
+        <tomcat.version>11.0.25</tomcat.version>
         <spotbugs-plugin.version>4.9.6.0</spotbugs-plugin.version>
         <findsecbugs.version>1.14.0</findsecbugs.version>
         <dependency-check.version>12.1.9</dependency-check.version>
