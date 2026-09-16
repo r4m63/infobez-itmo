@@ -1,32 +1,32 @@
-$ curl -i localhost:8080/api/data                      # без токена
+$ curl -i localhost:8080/api/data                      # без токена -> должно быть 401
 HTTP/1.1 401 
 
-$ curl -i -X POST localhost:8080/auth/login -H "Content-Type: application/json" -d '{"username":"admin","password":"wrong"}'
+$ curl -i -X POST localhost:8080/auth/login -H "Content-Type: application/json" -d '{"username":"admin","password":"wrong"}'   # неверный пароль -> 401
 HTTP/1.1 401 
 {"detail":"Invalid username or password","instance":"/auth/login","status":401,"title":"Unauthorized"}
 
-$ curl -X POST localhost:8080/auth/login -H "Content-Type: application/json" -d '{"username":"admin","password":"<пароль>"}'
+$ curl -X POST localhost:8080/auth/login -H "Content-Type: application/json" -d '{"username":"admin","password":"<пароль>"}'   # успешный логин -> JWT
 {"accessToken":"eyJhbGciOiJIUzI1NiJ9.eyJp...","tokenType":"Bearer","expiresIn":900}
 
-$ curl localhost:8080/api/data -H "Authorization: Bearer $TOKEN"
+$ curl localhost:8080/api/data -H "Authorization: Bearer $TOKEN"   # с токеном -> 200
 {
-  "total": 2,
   "items": [
     {
       "id": 2,
       "title": "Второй пост",
       "content": "Пароли хранятся в виде bcrypt-хешей.",
       "author": "user",
-      "createdAt": "2026-09-16T13:30:39.775118Z"
+      "createdAt": "2026-09-16T14:29:30.238991Z"
     },
     {
       "id": 1,
       "title": "Первый пост",
       "content": "Данные доступны только по валидному JWT.",
       "author": "admin",
-      "createdAt": "2026-09-16T13:30:39.759376Z"
+      "createdAt": "2026-09-16T14:29:30.223072Z"
     }
-  ]
+  ],
+  "total": 2
 }
 
 $ curl -X POST localhost:8080/api/posts -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
@@ -36,11 +36,11 @@ $ curl -X POST localhost:8080/api/posts -H "Authorization: Bearer $TOKEN" -H "Co
   "title": "&lt;script&gt;alert(1)&lt;/script&gt;Тест",
   "content": "&lt;img src=x onerror=alert(1)&gt;текст",
   "author": "admin",
-  "createdAt": "2026-09-16T13:30:41.051197Z"
+  "createdAt": "2026-09-16T14:29:32.426977Z"
 }
 
-$ curl "localhost:8080/api/data?query=' OR '1'='1" -H "Authorization: Bearer $TOKEN"   # SQLi-нагрузка
-{"total":0,"items":[]}
+$ curl "localhost:8080/api/data?query=' OR '1'='1" -H "Authorization: Bearer $TOKEN"   # SQLi-нагрузка -> пусто, не ошибка
+{"items":[],"total":0}
 
-$ curl -i localhost:8080/api/data -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiJ9.forged"   # поддельный токен
+$ curl -i localhost:8080/api/data -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiJ9.forged"   # поддельный токен -> 401
 HTTP/1.1 401 

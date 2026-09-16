@@ -5,20 +5,21 @@ bcrypt-хешированием паролей, защитой от SQL-инъе
 
 - Репозиторий: <https://github.com/r4m63/infobez-itmo>
 - Pipeline: <https://github.com/r4m63/infobez-itmo/actions/workflows/ci.yml>
-- Последний успешный запуск pipeline: <https://github.com/r4m63/infobez-itmo/actions/runs/35101196952>
-- Все успешные запуски на `main`: <https://github.com/r4m63/infobez-itmo/actions/workflows/ci.yml?query=branch%3Amain+is%3Asuccess>
+- Последний успешный запуск pipeline: <https://github.com/r4m63/infobez-itmo/actions/runs/35107799931>
+- Все успешные запуски на
+  `main`: <https://github.com/r4m63/infobez-itmo/actions/workflows/ci.yml?query=branch%3Amain+is%3Asuccess>
 
 ## Стек
 
-| Компонент | Выбор |
-|---|---|
-| Язык / фреймворк | Java 25, Spring Boot 4.1.1 (Web, Security, Data JPA, Validation) |
-| Сборка | Maven (`./mvnw`) |
-| БД | Посты — H2 in-memory через JPA/Hibernate; пользователи — массив в памяти (`InMemoryUserDetailsManager`). Docker не нужен |
-| JWT | Nimbus JOSE+JWT (`JwtEncoder`/`JwtDecoder` из Spring Security), HS256 |
-| Пароли | bcrypt, cost 12 (`BCryptPasswordEncoder`) |
-| SAST | SpotBugs + Find Security Bugs |
-| SCA | OWASP Dependency-Check, Trivy, Dependabot |
+| Компонент        | Выбор                                                                                                                    |
+|------------------|--------------------------------------------------------------------------------------------------------------------------|
+| Язык / фреймворк | Java 25, Spring Boot 4.1.1 (Web, Security, Data JPA, Validation)                                                         |
+| Сборка           | Maven (`./mvnw`)                                                                                                         |
+| БД               | Посты — H2 in-memory через JPA/Hibernate; пользователи — массив в памяти (`InMemoryUserDetailsManager`). Docker не нужен |
+| JWT              | Nimbus JOSE+JWT (`JwtEncoder`/`JwtDecoder` из Spring Security), HS256                                                    |
+| Пароли           | bcrypt, cost 12 (`BCryptPasswordEncoder`)                                                                                |
+| SAST             | SpotBugs + Find Security Bugs                                                                                            |
+| SCA              | OWASP Dependency-Check, Trivy, Dependabot                                                                                |
 
 ## Запуск
 
@@ -31,17 +32,18 @@ set -a && source .env && set +a
 При старте создаются пользователи `admin` и `user` с паролями из `DEMO_ADMIN_PASSWORD` / `DEMO_USER_PASSWORD`
 (хранятся только bcrypt-хеши). Тесты: `./mvnw verify`.
 
-Код намеренно простой: **один контроллер** ([ApiController](src/main/java/com/itmo/infobezitmo/controller/ApiController.java)),
+Код намеренно простой: **один контроллер
+** ([ApiController](src/main/java/com/itmo/infobezitmo/controller/ApiController.java)),
 **один сервис** ([ApiService](src/main/java/com/itmo/infobezitmo/service/ApiService.java)) и
 **один репозиторий** ([PostRepository](src/main/java/com/itmo/infobezitmo/repository/PostRepository.java)).
 
 ## API
 
-| Метод | Путь | Доступ | Описание |
-|---|---|---|---|
-| `POST` | `/auth/login` | публичный | Принимает `{"username","password"}`, возвращает JWT |
-| `GET` | `/api/data` | JWT | Список постов, необязательный поиск `?query=` по заголовку |
-| `POST` | `/api/posts` | JWT | Создание поста; автор берётся из токена |
+| Метод  | Путь          | Доступ    | Описание                                                   |
+|--------|---------------|-----------|------------------------------------------------------------|
+| `POST` | `/auth/login` | публичный | Принимает `{"username","password"}`, возвращает JWT        |
+| `GET`  | `/api/data`   | JWT       | Список постов, необязательный поиск `?query=` по заголовку |
+| `POST` | `/api/posts`  | JWT       | Создание поста; автор берётся из токена                    |
 
 ### Примеры (curl)
 
@@ -65,10 +67,19 @@ curl -X POST localhost:8080/api/posts \
 
 ```json
 // POST /auth/login -> 200
-{"accessToken":"eyJhbGciOiJIUzI1NiJ9...","tokenType":"Bearer","expiresIn":900}
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiJ9...",
+  "tokenType": "Bearer",
+  "expiresIn": 900
+}
 // GET /api/data без токена -> 401
 // POST /auth/login с неверным паролем -> 401
-{"detail":"Invalid username or password","instance":"/auth/login","status":401,"title":"Unauthorized"}
+{
+  "detail": "Invalid username or password",
+  "instance": "/auth/login",
+  "status": 401,
+  "title": "Unauthorized"
+}
 ```
 
 Полный протокол проверки через curl (без токена, неверный пароль, логин, данные, XSS- и SQLi-нагрузки,
@@ -133,12 +144,12 @@ Spring Data JPA / Hibernate:
 Файл: [.github/workflows/ci.yml](.github/workflows/ci.yml). Запускается при каждом `push`, `pull_request`
 и вручную. Четыре независимых job:
 
-| Job | Тип | Инструмент | Что делает |
-|---|---|---|---|
-| Build & tests | — | Maven, JUnit | `./mvnw verify`: сборка и 10 интеграционных тестов безопасности |
-| SAST | SAST | SpotBugs + Find Security Bugs | Статический анализ байткода (effort Max, threshold Medium); job падает при любой находке. Отчёт `spotbugs.html` в артефактах |
-| SCA — Dependency-Check | SCA | OWASP Dependency-Check | Поиск CVE в зависимостях, `failBuildOnCVSS=7`; HTML/JSON-отчёт в артефактах. Требует секрет `NVD_API_KEY` (без него NVD API с GitHub-раннеров не отвечает, шаг пропускается с предупреждением) |
-| SCA — Trivy | SCA | Trivy | Сканирует `pom.xml` на HIGH/CRITICAL CVE, а также секреты и мисконфигурации; отчёт в артефактах и в Job Summary |
+| Job                    | Тип  | Инструмент                    | Что делает                                                                                                                                                                                     |
+|------------------------|------|-------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Build & tests          | —    | Maven, JUnit                  | `./mvnw verify`: сборка и 10 интеграционных тестов безопасности                                                                                                                                |
+| SAST                   | SAST | SpotBugs + Find Security Bugs | Статический анализ байткода (effort Max, threshold Medium); job падает при любой находке. Отчёт `spotbugs.html` в артефактах                                                                   |
+| SCA — Dependency-Check | SCA  | OWASP Dependency-Check        | Поиск CVE в зависимостях, `failBuildOnCVSS=7`; HTML/JSON-отчёт в артефактах. Требует секрет `NVD_API_KEY` (без него NVD API с GitHub-раннеров не отвечает, шаг пропускается с предупреждением) |
+| SCA — Trivy            | SCA  | Trivy                         | Сканирует `pom.xml` на HIGH/CRITICAL CVE, а также секреты и мисконфигурации; отчёт в артефактах и в Job Summary                                                                                |
 
 Дополнительно включён Dependabot ([.github/dependabot.yml](.github/dependabot.yml)) — еженедельные PR с
 обновлениями зависимостей Maven и GitHub Actions.
@@ -168,7 +179,7 @@ Total: 1 (HIGH: 1, CRITICAL: 0)
 ```
 
 Отчёт Trivy в текущем успешном запуске
-([#32](https://github.com/r4m63/infobez-itmo/actions/runs/35101196952)):
+([#37](https://github.com/r4m63/infobez-itmo/actions/runs/35107799931)):
 
 ```
 Report Summary
