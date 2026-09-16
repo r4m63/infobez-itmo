@@ -21,7 +21,7 @@
         <java.version>25</java.version>
         <testcontainers.version>2.0.5</testcontainers.version>
         <owasp-sanitizer.version>20260101.1</owasp-sanitizer.version>
-        <spotbugs-plugin.version>4.9.6.0</spotbugs-plugin.version>
+        <spotbugs-plugin.version>4.10.4.1</spotbugs-plugin.version>
         <findsecbugs.version>1.14.0</findsecbugs.version>
         <dependency-check.version>12.1.9</dependency-check.version>
         <!-- Пустое значение = без ключа; в CI передаётся через -Dnvd.api.key -->
