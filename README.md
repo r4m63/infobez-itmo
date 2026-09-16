@@ -5,7 +5,8 @@ bcrypt-хешированием паролей, защитой от SQL-инъе
 
 - Репозиторий: <https://github.com/r4m63/infobez-itmo>
 - Pipeline: <https://github.com/r4m63/infobez-itmo/actions/workflows/ci.yml>
-- Последний успешный запуск: см. раздел [CI/CD](#cicd-pipeline)
+- Последний успешный запуск pipeline: <https://github.com/r4m63/infobez-itmo/actions/runs/35101196952>
+- Все успешные запуски на `main`: <https://github.com/r4m63/infobez-itmo/actions/workflows/ci.yml?query=branch%3Amain+is%3Asuccess>
 
 ## Стек
 
@@ -144,6 +145,41 @@ Spring Data JPA / Hibernate:
 `owasp-java-html-sanitizer 20240325.1`, которая использовалась в ранней версии проекта. Уязвимая
 зависимость была удалена (экранирование выполняется штатным `HtmlUtils.htmlEscape`), после чего SCA
 проходит без замечаний.
+
+Фрагмент отчёта Trivy до исправления (артефакт `trivy-report` запуска
+[#18](https://github.com/r4m63/infobez-itmo/actions/runs/35099573443)):
+
+```
+pom.xml (pom)
+=============
+Total: 1 (HIGH: 1, CRITICAL: 0)
+
+┌──────────────────────────────────────────────────────────────┬────────────────┬──────────┬────────┬───────────────────┬───────────────┬──────────────────────────────────────────────────────────────┐
+│                           Library                            │ Vulnerability  │ Severity │ Status │ Installed Version │ Fixed Version │                            Title                             │
+├──────────────────────────────────────────────────────────────┼────────────────┼──────────┼────────┼───────────────────┼───────────────┼──────────────────────────────────────────────────────────────┤
+│ com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sa- │ CVE-2025-66021 │ HIGH     │ fixed  │ 20240325.1        │ 20260101.1    │ com.googlecode.owasp-java-html-sanitizer/owasp-java-html-sa- │
+│ nitizer                                                      │                │          │        │                   │               │ nitizer: OWASP Java HTML Sanitizer vulnerable to XSS         │
+│                                                              │                │          │        │                   │               │ https://avd.aquasec.com/nvd/cve-2025-66021                   │
+└──────────────────────────────────────────────────────────────┴────────────────┴──────────┴────────┴───────────────────┴───────────────┴──────────────────────────────────────────────────────────────┘
+```
+
+Отчёт Trivy в текущем успешном запуске
+([#32](https://github.com/r4m63/infobez-itmo/actions/runs/35101196952)):
+
+```
+Report Summary
+
+┌───────────────────────┬──────┬─────────────────┬─────────┬───────────────────┐
+│        Target         │ Type │ Vulnerabilities │ Secrets │ Misconfigurations │
+├───────────────────────┼──────┼─────────────────┼─────────┼───────────────────┤
+│ pom.xml               │ pom  │        0        │    -    │         -         │
+├───────────────────────┼──────┼─────────────────┼─────────┼───────────────────┤
+│ docs/curl-session.txt │ text │        -        │    0    │         -         │
+└───────────────────────┴──────┴─────────────────┴─────────┴───────────────────┘
+Legend:
+- '-': Not scanned
+- '0': Clean (no security findings detected)
+```
 
 ### Скриншоты отчётов
 
