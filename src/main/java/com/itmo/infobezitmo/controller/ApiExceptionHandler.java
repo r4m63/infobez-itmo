@@ -1,4 +1,4 @@
-package com.itmo.infobezitmo.web;
+package com.itmo.infobezitmo.controller;
 
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
@@ -8,11 +8,10 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
 
-/** Единый формат ошибок (RFC 9457 ProblemDetail) без стектрейсов и внутренних деталей. */
+/** Единый формат ошибок (ProblemDetail) без стектрейсов и внутренних деталей. */
 @RestControllerAdvice
 public class ApiExceptionHandler {
 
-    /** Статус и краткая причина, заданные в коде (например, 401 при неверном логине/пароле). */
     @ExceptionHandler(ResponseStatusException.class)
     ProblemDetail statusException(ResponseStatusException ex) {
         return ProblemDetail.forStatusAndDetail(ex.getStatusCode(), ex.getReason());

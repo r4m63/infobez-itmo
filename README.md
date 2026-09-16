@@ -14,7 +14,7 @@ bcrypt-хешированием паролей, защитой от SQL-инъе
 |---|---|
 | Язык / фреймворк | Java 25, Spring Boot 4.1.1 (Web, Security, Data JPA, Validation) |
 | Сборка | Maven (`./mvnw`) |
-| БД | H2 in-memory через JPA/Hibernate (Docker и внешний сервер не нужны) |
+| БД | Посты — H2 in-memory через JPA/Hibernate; пользователи — массив в памяти (`InMemoryUserDetailsManager`). Docker не нужен |
 | JWT | Nimbus JOSE+JWT (`JwtEncoder`/`JwtDecoder` из Spring Security), HS256 |
 | Пароли | bcrypt, cost 12 (`BCryptPasswordEncoder`) |
 | SAST | SpotBugs + Find Security Bugs |
@@ -29,7 +29,11 @@ set -a && source .env && set +a
 ```
 
 При старте создаются пользователи `admin` и `user` с паролями из `DEMO_ADMIN_PASSWORD` / `DEMO_USER_PASSWORD`
-(в БД попадают только bcrypt-хеши). Тесты: `./mvnw verify`.
+(хранятся только bcrypt-хеши). Тесты: `./mvnw verify`.
+
+Код намеренно простой: **один контроллер** ([ApiController](src/main/java/com/itmo/infobezitmo/controller/ApiController.java)),
+**один сервис** ([ApiService](src/main/java/com/itmo/infobezitmo/service/ApiService.java)) и
+**один репозиторий** ([PostRepository](src/main/java/com/itmo/infobezitmo/repository/PostRepository.java)).
 
 ## API
 
@@ -77,10 +81,9 @@ curl -X POST localhost:8080/api/posts \
 Ни одного SQL-запроса, собранного конкатенацией строк, в проекте нет. Весь доступ к БД идёт через
 Spring Data JPA / Hibernate:
 
-- `AppUserRepository.findByUsername(...)` — запрос генерируется по имени метода, значение передаётся
-  параметром `PreparedStatement`.
+- `PostRepository.findAllByOrderByCreatedAtDesc()` — запрос генерируется Spring Data по имени метода.
 - `PostRepository.searchByTitle(...)` — JPQL с именованным параметром `:query`
-  ([PostRepository.java](src/main/java/com/itmo/infobezitmo/post/PostRepository.java)). Hibernate передаёт
+  ([PostRepository.java](src/main/java/com/itmo/infobezitmo/repository/PostRepository.java)). Hibernate передаёт
   значение отдельно от текста запроса, поэтому нагрузка `' OR '1'='1` ищется как обычная строка и
   возвращает пустой список (см. тест `sqlInjectionInSearchIsHarmless`).
 - Сортировка задана в коде, имя поля от пользователя не принимается; длина `query` ограничена
@@ -90,7 +93,7 @@ Spring Data JPA / Hibernate:
 
 Все пользовательские строки, возвращаемые API, экранируются встроенной функцией фреймворка
 `HtmlUtils.htmlEscape` при формировании DTO ответа
-([PostResponse.java](src/main/java/com/itmo/infobezitmo/post/PostResponse.java)):
+(`ApiService.PostDto.from` в [ApiService.java](src/main/java/com/itmo/infobezitmo/service/ApiService.java)):
 `<script>alert(1)</script>` возвращается как `&lt;script&gt;alert(1)&lt;/script&gt;`
 (тест `htmlInResponseIsEscaped`). Дополнительно:
 
@@ -101,7 +104,8 @@ Spring Data JPA / Hibernate:
 
 ### 3. Broken Authentication (OWASP A07:2021)
 
-**Выдача JWT.** `POST /auth/login` передаёт логин/пароль в `AuthenticationManager`; при успехе
+**Выдача JWT.** `POST /auth/login` → `ApiService.login` передаёт логин/пароль в `AuthenticationManager`
+(пароль сверяется с bcrypt-хешем); при успехе
 [JwtService](src/main/java/com/itmo/infobezitmo/security/JwtService.java) выпускает токен HS256 с claims
 `iss`, `sub` (логин), `iat`, `exp` (TTL 15 минут), `roles`. Секрет подписи берётся только из переменной
 окружения `JWT_SECRET` и проверяется на длину >= 32 символов; значения по умолчанию нет.
@@ -115,10 +119,10 @@ Spring Data JPA / Hibernate:
 `anyRequest().authenticated()` закрывает всё, кроме `/auth/login`: без токена или с поддельным токеном
 ответ `401` (тесты `dataWithoutTokenIsForbidden`, `forgedTokenIsRejected`).
 
-**Хранение паролей.** Только bcrypt-хеши (cost 12), см. `PasswordEncoder` в `SecurityConfig` и
-[DemoDataInitializer](src/main/java/com/itmo/infobezitmo/config/DemoDataInitializer.java). Открытые
-пароли не хранятся и не логируются (`LoginRequest.toString()` маскирует поле). Пример строки из БД:
-`$2a$12$SlVwdSfys0o.ut4PfOJine...`.
+**Хранение паролей.** Только bcrypt-хеши (cost 12): `PasswordEncoder` и `userDetailsService` в
+[SecurityConfig](src/main/java/com/itmo/infobezitmo/config/SecurityConfig.java) хешируют пароли из
+переменных окружения при старте, открытые значения нигде не сохраняются и не логируются
+(`LoginRequest.toString()` маскирует поле). Пример хеша: `$2a$12$SlVwdSfys0o.ut4PfOJine...`.
 
 **Дополнительно.** Одинаковый ответ для неизвестного логина и неверного пароля
 (`hideUserNotFoundExceptions`), stateless-сессии, ошибки отдаются в формате ProblemDetail без стектрейсов,
@@ -203,13 +207,16 @@ Trivy: найдена уязвимость CVE-2025-66021 в зависимос�
 
 ```
 src/main/java/com/itmo/infobezitmo/
-├── config/      SecurityConfig (цепочка фильтров, bcrypt), DemoDataInitializer
-├── security/    JwtService (выпуск/проверка JWT), JwtAuthenticationFilter (middleware), JwtProperties
-├── user/        AppUser, AppUserRepository, DatabaseUserDetailsService
-├── post/        Post, PostRepository (параметризованные запросы), PostService, DTO с экранированием
-└── web/         AuthController (/auth/login), DataController (/api/data, /api/posts), ApiExceptionHandler
+├── controller/ApiController.java        один контроллер: POST /auth/login, GET /api/data, POST /api/posts
+├── controller/ApiExceptionHandler.java  единый формат ошибок без стектрейсов
+├── service/ApiService.java              один сервис: логин (bcrypt + JWT), выборка, создание; DTO с экранированием
+├── repository/PostRepository.java       один репозиторий: параметризованные запросы (защита от SQLi)
+├── model/Post.java                      сущность H2
+├── security/JwtService.java             выпуск и проверка JWT (HS256)
+├── security/JwtAuthenticationFilter.java middleware: проверяет Bearer-токен на каждом запросе
+└── config/SecurityConfig.java           правила доступа, bcrypt, пользователи в памяти
 src/test/java/.../ApiSecurityTest.java   10 тестов: логин, 401 без токена, поддельный токен, XSS, SQLi, валидация
-.github/workflows/ci.yml                  pipeline: тесты, SpotBugs, Dependency-Check, Trivy
+.github/workflows/ci.yml                 pipeline: тесты, SpotBugs, Dependency-Check, Trivy
 ```
 
 ## Контрольные вопросы

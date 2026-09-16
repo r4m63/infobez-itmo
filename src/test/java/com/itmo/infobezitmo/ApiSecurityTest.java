@@ -1,6 +1,6 @@
 package com.itmo.infobezitmo;
 
-import com.itmo.infobezitmo.web.LoginResponse;
+import com.itmo.infobezitmo.service.ApiService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -118,11 +118,11 @@ class ApiSecurityTest {
     }
 
     private String login(String username, String password) {
-        LoginResponse response = client.post().uri("/auth/login").contentType(MediaType.APPLICATION_JSON)
+        ApiService.Token response = client.post().uri("/auth/login").contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {"username":"%s","password":"%s"}""".formatted(username, password))
                 .exchange().expectStatus().isOk()
-                .expectBody(LoginResponse.class).returnResult().getResponseBody();
+                .expectBody(ApiService.Token.class).returnResult().getResponseBody();
         return response.accessToken();
     }
 }
