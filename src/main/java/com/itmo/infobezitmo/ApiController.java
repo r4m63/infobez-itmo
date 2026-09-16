@@ -1,6 +1,5 @@
-package com.itmo.infobezitmo.controller;
+package com.itmo.infobezitmo;
 
-import com.itmo.infobezitmo.service.ApiService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

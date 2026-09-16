@@ -5,11 +5,16 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 
 /** Пост — единственная сущность в БД (H2). Пользователи хранятся в памяти, см. SecurityConfig. */
 @Entity
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Post {
 
     @Id
@@ -28,32 +33,9 @@ public class Post {
     @Column(nullable = false)
     private Instant createdAt = Instant.now();
 
-    protected Post() {
-    }
-
     public Post(String title, String content, String author) {
         this.title = title;
         this.content = content;
         this.author = author;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public String getContent() {
-        return content;
-    }
-
-    public String getAuthor() {
-        return author;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
     }
 }

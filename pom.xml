@@ -54,6 +54,13 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- Генерация геттеров/сеттеров/конструкторов аннотациями вместо ручного кода. -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
@@ -71,6 +78,21 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+
+            <!-- На Java 25 javac не подхватывает Lombok автоматически из classpath,
+                 поэтому annotation processor указан явно. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
             </plugin>
 
             <!-- SAST: SpotBugs + правила безопасности Find Security Bugs. -->

@@ -1,4 +1,4 @@
-package com.itmo.infobezitmo.controller;
+package com.itmo.infobezitmo;
 
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;

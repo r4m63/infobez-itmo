@@ -1,7 +1,6 @@
-package com.itmo.infobezitmo.service;
+package com.itmo.infobezitmo;
 
 import com.itmo.infobezitmo.model.Post;
-import com.itmo.infobezitmo.repository.PostRepository;
 import com.itmo.infobezitmo.security.JwtService;
 import jakarta.annotation.PostConstruct;
 import org.springframework.security.authentication.AuthenticationManager;
