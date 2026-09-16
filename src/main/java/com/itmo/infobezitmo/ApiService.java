@@ -41,8 +41,8 @@ public class ApiService {
     @PostConstruct
     void seed() {
         if (posts.count() == 0) {
-            posts.save(new Post("Первый пост", "Данные доступны только по валидному JWT.", "admin"));
-            posts.save(new Post("Второй пост", "Пароли хранятся в виде bcrypt-хешей.", "user"));
+            posts.save(Post.builder().title("Первый пост").content("Данные доступны только по валидному JWT.").author("admin").build());
+            posts.save(Post.builder().title("Второй пост").content("Пароли хранятся в виде bcrypt-хешей.").author("user").build());
         }
     }
 
@@ -65,6 +65,6 @@ public class ApiService {
 
     /** Автор берётся из проверенного JWT, а не из тела запроса. */
     public PostDto createPost(String author, String title, String content) {
-        return PostDto.from(posts.save(new Post(title.trim(), content.trim(), author)));
+        return PostDto.from(posts.save(Post.builder().title(title.trim()).content(content.trim()).author(author).build()));
     }
 }
