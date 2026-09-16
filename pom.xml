@@ -23,7 +23,7 @@
         <owasp-sanitizer.version>20240325.1</owasp-sanitizer.version>
         <spotbugs-plugin.version>4.9.6.0</spotbugs-plugin.version>
         <findsecbugs.version>1.14.0</findsecbugs.version>
-        <dependency-check.version>12.1.9</dependency-check.version>
+        <dependency-check.version>13.0.0</dependency-check.version>
         <!-- Пустое значение = без ключа; в CI передаётся через -Dnvd.api.key -->
         <nvd.api.key></nvd.api.key>
     </properties>
