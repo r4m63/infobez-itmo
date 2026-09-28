@@ -32,6 +32,12 @@ Java 25 необходима для сборки. Проверки локаль�
 | GET | `/api/data` | Bearer JWT | Список постов; `?query=` ищет по заголовку |
 | POST | `/api/posts` | Bearer JWT | Создать пост; автор берётся из токена |
 
+Спецификация всех трёх методов: [openapi.yaml](openapi.yaml).
+Чтобы проверить API через Postman, запустите приложение, импортируйте этот файл
+через **Import → File** и вызовите `POST /auth/login`. Скопируйте
+`accessToken` из ответа; для `GET /api/data` и `POST /api/posts` выберите
+**Authorization → Bearer Token** и вставьте токен без префикса `Bearer`.
+
 ```bash
 curl -i localhost:8080/api/data
 # 401 Unauthorized без токена
