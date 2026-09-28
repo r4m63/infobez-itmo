@@ -6,7 +6,7 @@
         не подставляет автоматически при cross-site запросах.
     -->
     <Match>
-        <Class name="com.itmo.infobezitmo.config.SecurityConfig"/>
+        <Class name="com.itmo.infobezitmo.ApiController"/>
         <Bug pattern="SPRING_CSRF_PROTECTION_DISABLED"/>
     </Match>
     <!-- Информационный маркер "здесь есть endpoint", а не дефект. -->

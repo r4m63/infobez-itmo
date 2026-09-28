@@ -1,6 +1,5 @@
 name: CI
 
-# Проверки запускаются автоматически при каждом push и pull request.
 on:
   push:
   pull_request:

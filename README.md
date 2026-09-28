@@ -1,278 +1,121 @@
-# Работа 1: защищённый REST API с интеграцией в CI/CD
+# Работа 1: защищённый REST API
 
-Учебный backend на **Java 25 / Spring Boot 4.1 / Maven** с тремя эндпоинтами, JWT-аутентификацией,
-bcrypt-хешированием паролей, защитой от SQL-инъекций и XSS, и GitHub Actions pipeline с SAST/SCA-сканерами.
+Учебное приложение на Java 25 и Spring Boot 4.1.1. Вся логика API находится в
+[ApiController.java](src/main/java/com/itmo/infobezitmo/ApiController.java).
+Для хранения есть одна [JPA-сущность Post](src/main/java/com/itmo/infobezitmo/model/Post.java)
+и один [репозиторий](src/main/java/com/itmo/infobezitmo/PostRepository.java).
+Hibernate работает с H2 в памяти; данные сбрасываются при перезапуске.
 
-- Репозиторий: <https://github.com/r4m63/infobez-itmo>
-- Pipeline: <https://github.com/r4m63/infobez-itmo/actions/workflows/ci.yml>
-- Проверенный успешный запуск pipeline для текущего кода: <https://github.com/r4m63/infobez-itmo/actions/runs/35109011447>
-- Все успешные запуски на
-  `main`: <https://github.com/r4m63/infobez-itmo/actions/workflows/ci.yml?query=branch%3Amain+is%3Asuccess>
-
-## Стек
-
-| Компонент        | Выбор                                                                                                                    |
-|------------------|--------------------------------------------------------------------------------------------------------------------------|
-| Язык / фреймворк | Java 25, Spring Boot 4.1.1 (Web, Security, Data JPA, Validation)                                                         |
-| Сборка           | Maven (`./mvnw`)                                                                                                         |
-| БД               | Посты — H2 in-memory через JPA/Hibernate; пользователи — массив в памяти (`InMemoryUserDetailsManager`). Docker не нужен |
-| JWT              | Nimbus JOSE+JWT (`JwtEncoder`/`JwtDecoder` из Spring Security), HS256                                                    |
-| Пароли           | bcrypt, cost 12 (`BCryptPasswordEncoder`)                                                                                |
-| SAST             | SpotBugs + Find Security Bugs                                                                                            |
-| SCA              | OWASP Dependency-Check, Trivy, Dependabot                                                                                |
+- [Публичный репозиторий](https://github.com/r4m63/infobez-itmo)
+- [GitHub Actions](https://github.com/r4m63/infobez-itmo/actions/workflows/ci.yml)
+- [Успешные запуски CI](https://github.com/r4m63/infobez-itmo/actions/workflows/ci.yml?query=branch%3Amain+is%3Asuccess)
 
 ## Запуск
 
 ```bash
-cp .env.example .env            # задать JWT_SECRET (>= 32 символов) и пароли демо-пользователей
+cp .env.example .env
+# Замените JWT_SECRET случайной строкой: openssl rand -base64 48
+# Задайте свои DEMO_ADMIN_PASSWORD и DEMO_USER_PASSWORD в .env
 set -a && source .env && set +a
 ./mvnw spring-boot:run
 ```
 
-При старте создаются пользователи `admin` и `user` с паролями из `DEMO_ADMIN_PASSWORD` / `DEMO_USER_PASSWORD`
-(хранятся только bcrypt-хеши). Тесты: `./mvnw verify`.
-
-Код намеренно простой: **один контроллер**
-([ApiController](src/main/java/com/itmo/infobezitmo/ApiController.java)),
-**один сервис** ([ApiService](src/main/java/com/itmo/infobezitmo/ApiService.java)) и
-**один репозиторий** ([PostRepository](src/main/java/com/itmo/infobezitmo/PostRepository.java)).
+Java 25 необходима для сборки. Проверки локально: `./mvnw verify` и
+`./mvnw -DskipTests compile spotbugs:spotbugs spotbugs:check`.
+При старте создаются пользователи `admin` и `user`; их пароли берутся из
+переменных окружения и сразу хэшируются bcrypt (cost 12).
 
 ## API
 
-| Метод  | Путь          | Доступ    | Описание                                                   |
-|--------|---------------|-----------|------------------------------------------------------------|
-| `POST` | `/auth/login` | публичный | Принимает `{"username","password"}`, возвращает JWT        |
-| `GET`  | `/api/data`   | JWT       | Список постов, необязательный поиск `?query=` по заголовку |
-| `POST` | `/api/posts`  | JWT       | Создание поста; автор берётся из токена                    |
-
-### Примеры (curl)
+| Метод | Путь | Доступ | Назначение |
+|---|---|---|---|
+| POST | `/auth/login` | Публичный | Логин и пароль → JWT |
+| GET | `/api/data` | Bearer JWT | Список постов; `?query=` ищет по заголовку |
+| POST | `/api/posts` | Bearer JWT | Создать пост; автор берётся из токена |
 
 ```bash
-# 1. Логин -> JWT
-TOKEN=$(curl -s -X POST localhost:8080/auth/login \
+curl -i localhost:8080/api/data
+# 401 Unauthorized без токена
+
+curl -i -X POST localhost:8080/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"<DEMO_ADMIN_PASSWORD>"}' | jq -r .accessToken)
+  -d '{"username":"admin","password":"<значение DEMO_ADMIN_PASSWORD>"}'
+# 200 OK: {"accessToken":"...","tokenType":"Bearer","expiresIn":900}
 
-# 2. Данные (только с токеном)
-curl localhost:8080/api/data -H "Authorization: Bearer $TOKEN"
-curl "localhost:8080/api/data?query=первый" -H "Authorization: Bearer $TOKEN"
-
-# 3. Создание поста
+TOKEN='<accessToken из ответа>'
+curl -H "Authorization: Bearer $TOKEN" localhost:8080/api/data
 curl -X POST localhost:8080/api/posts \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"title":"Заголовок","content":"Текст"}'
 ```
 
-Ответы:
+Ответ на создание поста имеет статус 201. Неверный пароль и недействительный JWT
+дают 401. [Протокол ручной проверки curl](docs/curl-session.txt).
 
-```json
-// POST /auth/login -> 200
-{
-  "accessToken": "eyJhbGciOiJIUzI1NiJ9...",
-  "tokenType": "Bearer",
-  "expiresIn": 900
-}
-// GET /api/data без токена -> 401
-// POST /auth/login с неверным паролем -> 401
-{
-  "detail": "Invalid username or password",
-  "instance": "/auth/login",
-  "status": 401,
-  "title": "Unauthorized"
-}
-```
+## Защита
 
-Полный протокол проверки через curl (без токена, неверный пароль, логин, данные, XSS- и SQLi-нагрузки,
-поддельный токен): [docs/curl-session.txt](docs/curl-session.txt).
+- **SQLi:** операции с H2 выполняются через Spring Data JPA / Hibernate.
+  Поиск использует именованный параметр `:query` в JPQL, поэтому введённая
+  строка не становится частью SQL-команды. Нагрузка `' OR '1'='1`
+  возвращает пустой список.
+- **XSS:** поля поста экранируются `HtmlUtils.htmlEscape` перед возвратом в JSON.
+  Например, `<script>` становится `&lt;script&gt;`. Также включены
+  `Content-Security-Policy` и `X-Content-Type-Options: nosniff`.
+- **Аутентификация:** пароль проверяется по bcrypt-хэшу; при успехе выдаётся JWT,
+  подписанный HS256. Секрет берётся из `JWT_SECRET`, срок действия — 15 минут.
+  Стандартный фильтр Spring Security проверяет подпись, срок и издателя токена.
+  Только `/auth/login` открыт без токена. Автор нового поста берётся из
+  проверенной учётной записи, а не из JSON запроса.
+- **Валидация:** логин, пароль, заголовок и текст не могут быть пустыми; их длина
+  ограничена. Ошибки возвращаются без стектрейсов. API не использует cookie и
+  серверные сессии.
 
-## Реализованные меры защиты
+Для публичного развёртывания дополнительно понадобятся HTTPS, ограничение
+частоты попыток входа и механизм отзыва токенов. Тесты в
+[ApiSecurityTest.java](src/test/java/com/itmo/infobezitmo/ApiSecurityTest.java)
+проверяют вход, 401 без токена и с подделкой, создание поста, XSS, SQLi и валидацию.
 
-### 1. SQL-инъекции (OWASP A03:2021 Injection)
+## CI и отчёты
 
-Ни одного SQL-запроса, собранного конкатенацией строк, в проекте нет. Весь доступ к БД идёт через
-Spring Data JPA / Hibernate:
+[Workflow](.github/workflows/ci.yml) запускается при каждом `push` и
+`pull_request`. Его шаги:
 
-- `PostRepository.findAllByOrderByCreatedAtDesc()` — запрос генерируется Spring Data по имени метода.
-- `PostRepository.searchByTitle(...)` — JPQL с именованным параметром `:query`
-  ([PostRepository.java](src/main/java/com/itmo/infobezitmo/PostRepository.java)). Hibernate передаёт
-  значение отдельно от текста запроса, поэтому нагрузка `' OR '1'='1` ищется как обычная строка и
-  возвращает пустой список (см. тест `sqlInjectionInSearchIsHarmless`).
-- Сортировка задана в коде, имя поля от пользователя не принимается; длина `query` ограничена
-  `@Size(max = 100)`.
+| Проверка | Инструмент | Результат |
+|---|---|---|
+| Сборка и тесты | Maven + JUnit | Ошибка job при падении теста |
+| SAST | SpotBugs + Find Security Bugs | Анализ Java-байткода, XML/HTML-отчёт |
+| SCA | Trivy | Поиск известных уязвимостей в зависимостях; отчёт в артефакте |
+| Дополнительная SCA | OWASP Dependency-Check | HTML/JSON-отчёт при наличии `NVD_API_KEY` |
 
-### 2. XSS (OWASP A03:2021 Injection)
+Trivy завершает job с ошибкой при находке уровня HIGH/CRITICAL.
+Dependency-Check настроен в Maven, но без секрета Actions `NVD_API_KEY` его
+шаг **пропускается**; зелёный статус этой job сам по себе не является результатом
+сканирования. Чтобы получить отчёт именно Dependency-Check, добавьте ключ NVD
+в Settings → Secrets and variables → Actions и перезапустите workflow.
 
-Все пользовательские строки, возвращаемые API, экранируются встроенной функцией фреймворка
-`HtmlUtils.htmlEscape` при формировании DTO ответа
-(`ApiService.PostDto.from` в [ApiService.java](src/main/java/com/itmo/infobezitmo/ApiService.java)):
-`<script>alert(1)</script>` возвращается как `&lt;script&gt;alert(1)&lt;/script&gt;`
-(тест `htmlInResponseIsEscaped`). Дополнительно:
+Скриншоты ниже относятся к предыдущему запуску этого репозитория; после
+упрощения кода актуальный результат следует смотреть по ссылке на CI выше.
 
-- ответы отдаются только как `application/json`;
-- заголовки `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'` и
-  `X-Content-Type-Options: nosniff`;
-- длина полей ограничена Bean Validation (`@Size`), пустые значения отклоняются (`@NotBlank`).
+![Успешный запуск GitHub Actions](docs/screenshots/01-ci-success.png)
+![Список запусков](docs/screenshots/02-actions-list.png)
+![Trivy нашёл уязвимую библиотеку до исправления](docs/screenshots/03-trivy-found-cve.png)
+![Отчёт SpotBugs без замечаний](docs/screenshots/04-spotbugs-report.png)
 
-### 3. Broken Authentication (OWASP A07:2021)
-
-**Выдача JWT.** `POST /auth/login` → `ApiService.login` передаёт логин/пароль в `AuthenticationManager`
-(пароль сверяется с bcrypt-хешем); при успехе
-[JwtService](src/main/java/com/itmo/infobezitmo/security/JwtService.java) выпускает токен HS256 с claims
-`iss`, `sub` (логин), `iat`, `exp` (TTL 15 минут), `roles`. Секрет подписи берётся только из переменной
-окружения `JWT_SECRET` и проверяется на длину >= 32 символов; значения по умолчанию нет.
-Для реального запуска секрет нужно генерировать случайно (`openssl rand -base64 48`): одна только
-длина строки не гарантирует её непредсказуемость.
-
-**Middleware проверки токена.**
-[JwtAuthenticationFilter](src/main/java/com/itmo/infobezitmo/security/JwtAuthenticationFilter.java) —
-`OncePerRequestFilter`, включённый в цепочку Spring Security перед стандартным фильтром логина. На каждом
-запросе он читает `Authorization: Bearer <token>`, проверяет подпись, срок действия и издателя
-(`JwtValidators.createDefaultWithIssuer`) и помещает пользователя в `SecurityContext`. В
-[SecurityConfig](src/main/java/com/itmo/infobezitmo/config/SecurityConfig.java) правило
-`anyRequest().authenticated()` закрывает всё, кроме `/auth/login`: без токена или с поддельным токеном
-ответ `401` (тесты `dataWithoutTokenIsForbidden`, `forgedTokenIsRejected`).
-
-**Хранение паролей.** Только bcrypt-хеши (cost 12): `PasswordEncoder` и `userDetailsService` в
-[SecurityConfig](src/main/java/com/itmo/infobezitmo/config/SecurityConfig.java) хешируют пароли из
-переменных окружения при старте, открытые значения нигде не сохраняются и не логируются
-(`LoginRequest.toString()` маскирует поле). Пример хеша: `$2a$12$SlVwdSfys0o.ut4PfOJine...`.
-
-**Дополнительно.** Одинаковый ответ для неизвестного логина и неверного пароля
-(`hideUserNotFoundExceptions`), stateless-сессии, ошибки отдаются в формате ProblemDetail без стектрейсов,
-логины в логах очищаются от `\r\n` (log forging). Это учебное API: для публичного сервиса также
-потребовались бы HTTPS, ограничение частоты входа и управление отзывом токенов.
-
-## CI/CD pipeline
-
-Файл: [.github/workflows/ci.yml](.github/workflows/ci.yml). Запускается при каждом `push`, `pull_request`
-и вручную. Четыре независимых job:
-
-| Job                    | Тип  | Инструмент                    | Что делает                                                                                                                                                                                     |
-|------------------------|------|-------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Build & tests          | —    | Maven, JUnit                  | `./mvnw verify`: сборка и 10 интеграционных тестов безопасности                                                                                                                                |
-| SAST                   | SAST | SpotBugs + Find Security Bugs | Статический анализ байткода (effort Max, threshold Medium); job падает при любой находке. Отчёт `spotbugs.html` в артефактах                                                                   |
-| SCA — Dependency-Check | SCA  | OWASP Dependency-Check        | Поиск CVE в зависимостях, `failBuildOnCVSS=7`; HTML/JSON-отчёт в артефактах. Запускается только при наличии секрета `NVD_API_KEY`; без него сканирование пропускается с предупреждением |
-| SCA — Trivy            | SCA  | Trivy                         | Сканирует `pom.xml` на HIGH/CRITICAL CVE, а также секреты и мисконфигурации; отчёт в артефактах и в Job Summary                                                                                |
-
-Дополнительно включён Dependabot ([.github/dependabot.yml](.github/dependabot.yml)) — еженедельные PR с
-обновлениями зависимостей Maven и GitHub Actions.
-
-В проверенном запуске `NVD_API_KEY` не задан: job Dependency-Check зелёный, но сам сканер
-**не запускался и отчёта от него нет**. Обязательную SCA-проверку выполняет Trivy; его job
-завершается ошибкой при находках уровня HIGH/CRITICAL. Для дополнительного отчёта Dependency-Check
-нужно получить бесплатный API-ключ NVD и записать его в секрет Actions `NVD_API_KEY`.
-
-### Найденная и исправленная уязвимость
-
-При первом запуске Trivy обнаружил в проекте **CVE-2025-66021 (HIGH)** — XSS в библиотеке
-`owasp-java-html-sanitizer 20240325.1`, которая использовалась в ранней версии проекта. Уязвимая
-зависимость была удалена (экранирование выполняется штатным `HtmlUtils.htmlEscape`), после чего SCA
-проходит без замечаний.
-
-Фрагмент отчёта Trivy до исправления (артефакт `trivy-report` запуска
-[#18](https://github.com/r4m63/infobez-itmo/actions/runs/35099573443)):
-
-```
-pom.xml (pom)
-=============
-Total: 1 (HIGH: 1, CRITICAL: 0)
-
-┌──────────────────────────────────────────────────────────────┬────────────────┬──────────┬────────┬───────────────────┬───────────────┬──────────────────────────────────────────────────────────────┐
-│                           Library                            │ Vulnerability  │ Severity │ Status │ Installed Version │ Fixed Version │                            Title                             │
-├──────────────────────────────────────────────────────────────┼────────────────┼──────────┼────────┼───────────────────┼───────────────┼──────────────────────────────────────────────────────────────┤
-│ com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sa- │ CVE-2025-66021 │ HIGH     │ fixed  │ 20240325.1        │ 20260101.1    │ com.googlecode.owasp-java-html-sanitizer/owasp-java-html-sa- │
-│ nitizer                                                      │                │          │        │                   │               │ nitizer: OWASP Java HTML Sanitizer vulnerable to XSS         │
-│                                                              │                │          │        │                   │               │ https://avd.aquasec.com/nvd/cve-2025-66021                   │
-└──────────────────────────────────────────────────────────────┴────────────────┴──────────┴────────┴───────────────────┴───────────────┴──────────────────────────────────────────────────────────────┘
-```
-
-Отчёт Trivy в проверенном успешном запуске
-([#38](https://github.com/r4m63/infobez-itmo/actions/runs/35109011447)):
-
-```
-Report Summary
-
-┌───────────────────────┬──────┬─────────────────┬─────────┬───────────────────┐
-│        Target         │ Type │ Vulnerabilities │ Secrets │ Misconfigurations │
-├───────────────────────┼──────┼─────────────────┼─────────┼───────────────────┤
-│ pom.xml               │ pom  │        0        │    -    │         -         │
-├───────────────────────┼──────┼─────────────────┼─────────┼───────────────────┤
-│ docs/curl-session.txt │ text │        -        │    0    │         -         │
-└───────────────────────┴──────┴─────────────────┴─────────┴───────────────────┘
-Legend:
-- '-': Not scanned
-- '0': Clean (no security findings detected)
-```
-
-### Скриншоты отчётов
-
-Успешный запуск pipeline (все четыре job зелёные; Dependency-Check пропущен без ключа NVD):
-
-![CI success](docs/screenshots/01-ci-success.png)
-
-Список запусков workflow CI:
-
-![Actions list](docs/screenshots/02-actions-list.png)
-
-Trivy: найдена уязвимость CVE-2025-66021 в зависимости (запуск до исправления):
-
-![Trivy found CVE](docs/screenshots/03-trivy-found-cve.png)
-
-Отчёт SpotBugs + Find Security Bugs (0 замечаний):
-
-![SpotBugs report](docs/screenshots/04-spotbugs-report.png)
-
-## Структура проекта
-
-```
-src/main/java/com/itmo/infobezitmo/
-├── ApiController.java                   один контроллер: POST /auth/login, GET /api/data, POST /api/posts
-├── ApiExceptionHandler.java             единый формат ошибок без стектрейсов
-├── ApiService.java                      один сервис: логин (bcrypt + JWT), выборка, создание; DTO с экранированием
-├── PostRepository.java                  один репозиторий: параметризованные запросы (защита от SQLi)
-├── model/Post.java                      сущность H2
-├── security/JwtService.java             выпуск и проверка JWT (HS256)
-├── security/JwtAuthenticationFilter.java middleware: проверяет Bearer-токен на каждом запросе
-└── config/SecurityConfig.java           правила доступа, bcrypt, пользователи в памяти
-src/test/java/.../ApiSecurityTest.java   10 тестов: логин, 401 без токена, поддельный токен, XSS, SQLi, валидация
-.github/workflows/ci.yml                 pipeline: тесты, SpotBugs, Dependency-Check, Trivy
-```
+Уязвимость CVE-2025-66021 в старой версии
+`owasp-java-html-sanitizer` была найдена Trivy и исправлена удалением
+этой зависимости. [Запуск до исправления](https://github.com/r4m63/infobez-itmo/actions/runs/35099573443).
 
 ## Контрольные вопросы
 
-**1. Почему bcrypt предпочтительнее SHA-256 для паролей?**
-SHA-256 — быстрый хеш общего назначения: на GPU считаются миллиарды хешей в секунду, поэтому утёкшую
-базу перебирают по словарю за часы, а без соли одинаковые пароли дают одинаковые хеши и ломаются
-радужными таблицами. bcrypt создан именно для паролей: он медленный по конструкции, стоимость
-регулируется параметром cost (у нас 12 ≈ 250 мс на хеш) и растёт вместе с мощностью железа,
-соль генерируется автоматически и хранится внутри строки хеша. В итоге перебор одного пароля стоит
-в миллионы раз дороже, а радужные таблицы бесполезны.
-
-**2. Разница между SAST и DAST.**
-SAST (Static Application Security Testing) анализирует исходный код или байткод без запуска
-приложения: находит подозрительные конструкции (например, конкатенацию SQL или слабую криптографию),
-работает рано, на каждом коммите, знает точную строку кода, но даёт ложные срабатывания и не видит
-проблем конфигурации и окружения. DAST (Dynamic Application Security Testing) тестирует уже запущенное приложение снаружи как
-злоумышленник (OWASP ZAP, Burp): отправляет запросы с нагрузками и смотрит на ответы. Он не зависит
-от языка и находит реальные эксплуатируемые проблемы, но не указывает на строку кода, работает
-позже и медленнее. В этой работе используется SAST (SpotBugs/FindSecBugs); SCA-сканеры дополняют его
-проверкой зависимостей.
-
-**3. Механизм работы JWT.**
-JWT — три части в Base64URL, разделённые точками: `header.payload.signature`. Header содержит
-алгоритм (`HS256`) и тип; payload — claims: `iss` (издатель), `sub` (пользователь), `iat`/`exp`
-(время выпуска и истечения), пользовательские поля (`roles`). Подпись = HMAC-SHA256 от
-`base64(header).base64(payload)` на секретном ключе сервера. При запросе клиент шлёт токен в
-`Authorization: Bearer`. Сервер заново вычисляет подпись по своему секрету и сравнивает с
-присланной: если payload изменён или подписан другим ключом, подпись не совпадёт и токен
-отвергается. Затем проверяются `exp` и `iss`. Payload только закодирован, не зашифрован, поэтому
-секретов в нём быть не должно. Сервер не хранит сессий — вся информация в самом токене.
-
-**4. Риски без аудита зависимостей.**
-Современное приложение на 80–90 % состоит из чужого кода. Без SCA-аудита в проект попадают
-библиотеки с известными CVE (Log4Shell в log4j, RCE в Spring4Shell, XSS в html-sanitizer из этой
-работы) — злоумышленнику достаточно проверить версию. Уязвимость может быть транзитивной, то есть в
-зависимости зависимости, которую разработчик даже не видит. Добавляются риски supply chain:
-захваченные пакеты, typosquatting, вредоносный код в обновлениях, а также лицензионные нарушения и
-заброшенные библиотеки, которые никто не исправит. Автоматический аудит (Dependency-Check, Trivy,
-Dependabot) на каждом push позволяет узнать об уязвимости и обновиться до того, как её используют.
+1. **Почему bcrypt, а не SHA-256?** SHA-256 слишком быстр для хранения паролей:
+   украденные хэши удобно перебирать. bcrypt использует случайную соль и
+   настраиваемую стоимость вычисления (здесь cost 12).
+2. **Чем SAST отличается от DAST?** SAST анализирует код или байткод без запуска
+   приложения. DAST посылает запросы работающему приложению и изучает ответы.
+3. **Как работает JWT?** Токен состоит из `header.payload.signature`. Здесь
+   payload содержит издателя `iss`, пользователя `sub`, время выпуска `iat` и
+   истечения `exp`. Сервер проверяет HMAC-подпись и ограничения времени и
+   издателя. Payload закодирован, но не зашифрован.
+4. **Зачем аудит зависимостей?** Даже безопасный собственный код может
+   использовать библиотеку с известной CVE. SCA находит такие зависимости,
+   включая косвенные, чтобы их можно было обновить или заменить.

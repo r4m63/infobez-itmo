@@ -117,11 +117,11 @@ class ApiSecurityTest {
     }
 
     private String login(String username, String password) {
-        ApiService.Token response = client.post().uri("/auth/login").contentType(MediaType.APPLICATION_JSON)
+        ApiController.Token response = client.post().uri("/auth/login").contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {"username":"%s","password":"%s"}""".formatted(username, password))
                 .exchange().expectStatus().isOk()
-                .expectBody(ApiService.Token.class).returnResult().getResponseBody();
+                .expectBody(ApiController.Token.class).returnResult().getResponseBody();
         return response.accessToken();
     }
 }

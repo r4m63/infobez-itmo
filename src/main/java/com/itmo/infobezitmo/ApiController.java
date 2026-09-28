@@ -1,75 +1,175 @@
 package com.itmo.infobezitmo;
 
+import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import com.itmo.infobezitmo.model.Post;
+import jakarta.annotation.PostConstruct;
+import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.ProblemDetail;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.security.oauth2.jwt.JwtValidators;
+import org.springframework.security.oauth2.jwt.JwsHeader;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.util.HtmlUtils;
 
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
-/** Единственный контроллер с тремя методами API. */
 @RestController
 @Validated
 public class ApiController {
 
-    private static final Logger log = LoggerFactory.getLogger(ApiController.class);
-
-    public record LoginRequest(@NotBlank @Size(max = 64) String username,
-                               @NotBlank @Size(max = 128) String password) {
-        /** Пароль не должен попадать в логи. */
+    public record LoginRequest(
+            @NotBlank @Size(max = 64) String username,
+            @NotBlank @Size(max = 128) String password
+    ) {
         @Override
         public String toString() {
             return "LoginRequest[username=" + username + ", password=***]";
         }
     }
 
-    public record PostRequest(@NotBlank @Size(max = 200) String title,
-                              @NotBlank @Size(max = 4000) String content) {
+    public record PostRequest(
+            @NotBlank @Size(max = 200) String title,
+            @NotBlank @Size(max = 4000) String content
+    ) {
     }
 
-    private final ApiService service;
-
-    public ApiController(ApiService service) {
-        this.service = service;
+    public record PostDto(long id, String title, String content, String author, Instant createdAt) {
     }
 
-    /** 1) POST /auth/login — логин и пароль -> JWT. Единственный публичный эндпоинт. */
-    @PostMapping("/auth/login")
-    public ApiService.Token login(@Valid @RequestBody LoginRequest request) {
-        try {
-            return service.login(request.username(), request.password());
-        } catch (AuthenticationException ex) {
-            // Одинаковый ответ для неизвестного логина и неверного пароля; логин очищен от \r\n (log forging).
-            log.warn("Failed login attempt for user '{}'", request.username().replaceAll("[\\r\\n]", "_"));
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid username or password");
+    public record Token(String accessToken, String tokenType, long expiresIn) {
+    }
+
+    private final PostRepository posts;
+    private final BCryptPasswordEncoder passwords = new BCryptPasswordEncoder(12);
+    private final Map<String, String> users;
+    private final String issuer;
+    private final long ttlSeconds;
+    private final SecretKey jwtKey;
+    private final NimbusJwtEncoder jwtEncoder;
+
+    public ApiController(PostRepository posts,
+                         @Value("${app.demo.admin-password}") String adminPassword,
+                         @Value("${app.demo.user-password}") String userPassword,
+                         @Value("${app.jwt.secret}") String secret,
+                         @Value("${app.jwt.issuer}") String issuer,
+                         @Value("${app.jwt.ttl}") Duration ttl) {
+        this.posts = posts;
+        this.users = Map.of("admin", passwords.encode(adminPassword),
+                "user", passwords.encode(userPassword));
+        this.issuer = issuer;
+        this.ttlSeconds = ttl.toSeconds();
+        this.jwtKey = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+        this.jwtEncoder = new NimbusJwtEncoder(new ImmutableSecret<>(jwtKey));
+    }
+
+    @PostConstruct
+    void init() {
+        if (jwtKey.getEncoded().length < 32) {
+            throw new IllegalStateException("JWT_SECRET must be at least 32 bytes");
+        }
+        if (posts.count() == 0) {
+            posts.save(new Post("Первый пост", "Данные доступны только по валидному JWT.", "admin"));
+            posts.save(new Post("Второй пост", "Пароли хранятся в виде bcrypt-хешей.", "user"));
         }
     }
 
-    /** 2) GET /api/data — список постов, только с валидным JWT (см. SecurityConfig). */
-    @GetMapping("/api/data")
-    public Map<String, Object> data(@RequestParam(required = false) @Size(max = 100) String query) {
-        List<ApiService.PostDto> items = service.getData(query);
-        return Map.of("items", items, "total", items.size());
+    @Bean
+    NimbusJwtDecoder jwtDecoder() {
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(jwtKey)
+                .macAlgorithm(MacAlgorithm.HS256).build();
+        decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(issuer));
+        return decoder;
     }
 
-    /** 3) POST /api/posts — создание поста от имени владельца токена. */
+    @Bean
+    SecurityFilterChain securityFilterChain(HttpSecurity http, NimbusJwtDecoder decoder) throws Exception {
+        return http
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/auth/login").permitAll()
+                        .anyRequest().authenticated())
+                .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> jwt.decoder(decoder)))
+                .headers(headers -> headers
+                        .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'none'; frame-ancestors 'none'"))
+                        .contentTypeOptions(c -> { }))
+                .build();
+    }
+
+    @PostMapping("/auth/login")
+    public Token login(@Valid @RequestBody LoginRequest request) {
+        String hash = users.getOrDefault(request.username(), users.get("admin"));
+        boolean correctPassword = passwords.matches(request.password(), hash);
+        if (!correctPassword || !users.containsKey(request.username())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid username or password");
+        }
+        Instant now = Instant.now();
+        JwtClaimsSet claims = JwtClaimsSet.builder()
+                .issuer(issuer).subject(request.username())
+                .issuedAt(now).expiresAt(now.plusSeconds(ttlSeconds)).build();
+        String value = jwtEncoder.encode(JwtEncoderParameters.from(
+                JwsHeader.with(MacAlgorithm.HS256).build(), claims)).getTokenValue();
+        return new Token(value, "Bearer", ttlSeconds);
+    }
+
+    @GetMapping("/api/data")
+    public Map<String, Object> data(@RequestParam(required = false) @Size(max = 100) String query) {
+        List<Post> found = query == null || query.isBlank()
+                ? posts.findAllByOrderByCreatedAtDesc()
+                : posts.searchByTitle(query.trim());
+        List<PostDto> safe = found.stream().map(ApiController::escape).toList();
+        return Map.of("items", safe, "total", safe.size());
+    }
+
     @PostMapping("/api/posts")
-    public ResponseEntity<ApiService.PostDto> createPost(@Valid @RequestBody PostRequest request,
-                                                         Authentication authentication) {
-        ApiService.PostDto created = service.createPost(authentication.getName(), request.title(), request.content());
-        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    @ResponseStatus(HttpStatus.CREATED)
+    public PostDto createPost(@Valid @RequestBody PostRequest request, Authentication authentication) {
+        Post post = posts.save(new Post(request.title().trim(), request.content().trim(), authentication.getName()));
+        return escape(post);
+    }
+
+    private static PostDto escape(Post post) {
+        return new PostDto(post.getId(), HtmlUtils.htmlEscape(post.getTitle()),
+                HtmlUtils.htmlEscape(post.getContent()), HtmlUtils.htmlEscape(post.getAuthor()), post.getCreatedAt());
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    ProblemDetail statusException(ResponseStatusException ex) {
+        return ProblemDetail.forStatusAndDetail(ex.getStatusCode(), ex.getReason());
+    }
+
+    @ExceptionHandler({MethodArgumentNotValidException.class, ConstraintViolationException.class})
+    ProblemDetail invalidInput() {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Validation failed");
     }
 }
