@@ -3,3 +3,5 @@ curl -i -X POST http://localhost:8080/auth/login -H 'Content-Type: application/j
 curl -i http://localhost:8080/api/data -H 'Authorization: Bearer <accessToken>'
 
 curl -i -X POST http://localhost:8080/api/posts -H 'Authorization: Bearer <accessToken>' -H 'Content-Type: application/json' -d '{"title":"Заголовок","content":"Текст"}'
+
+eyJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJpbmZvYmV6LWl0bW8iLCJzdWIiOiJhZG1pbiIsImV4cCI6MTc5MDYyOTg5NSwiaWF0IjoxNzkwNjI4OTk1fQ.qfuw0ZZxwLXk0BKFKIl92O3L5lvIpO5Fsejs_jWA95Y
