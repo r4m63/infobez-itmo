@@ -57,21 +57,8 @@ curl -X POST localhost:8080/api/posts \
 Ответ на создание поста имеет статус 201. Неверный пароль и недействительный JWT
 дают 401. [Протокол ручной проверки curl](docs/curl-session.txt).
 
-### Готовые curl-скрипты
-
-После запуска сервера выполните из корня проекта:
-
-```bash
-./test/login.sh
-./test/data.sh
-./test/data.sh 'Первый'
-./test/create-post.sh 'Заголовок' 'Текст'
-./test/security.sh
-```
-
-Скрипты сами получают JWT. Для другого адреса сервера укажите
-`API_BASE_URL=http://localhost:18080`; логин и пароль можно переопределить через
-`API_USERNAME` и `API_PASSWORD`. Нужны только `curl` и `python3`.
+Команды для трёх запросов: [test/requests.txt](test/requests.txt). В защищённых
+запросах замените `<accessToken>` токеном из ответа login.
 
 ## Защита
 

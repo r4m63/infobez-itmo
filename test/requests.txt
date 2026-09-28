@@ -1,0 +1,5 @@
+curl -i -X POST http://localhost:8080/auth/login -H 'Content-Type: application/json' -d '{"username":"admin","password":"admin-password"}'
+
+curl -i http://localhost:8080/api/data -H 'Authorization: Bearer <accessToken>'
+
+curl -i -X POST http://localhost:8080/api/posts -H 'Authorization: Bearer <accessToken>' -H 'Content-Type: application/json' -d '{"title":"Заголовок","content":"Текст"}'
