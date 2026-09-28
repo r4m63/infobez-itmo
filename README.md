@@ -2,9 +2,11 @@
 
 Учебное приложение на Java 25 и Spring Boot 4.1.1. Вся логика API находится в
 [ApiController.java](src/main/java/com/itmo/infobezitmo/ApiController.java).
-Для хранения есть одна [JPA-сущность Post](src/main/java/com/itmo/infobezitmo/model/Post.java)
+Для хранения есть одна [JPA-сущность Post](src/main/java/com/itmo/infobezitmo/Post.java)
 и один [репозиторий](src/main/java/com/itmo/infobezitmo/PostRepository.java).
 Hibernate работает с H2 в памяти; данные сбрасываются при перезапуске.
+Правила доступа и проверка JWT находятся в
+[SecurityConfig.java](src/main/java/com/itmo/infobezitmo/SecurityConfig.java).
 
 - [Публичный репозиторий](https://github.com/r4m63/infobez-itmo)
 - [GitHub Actions](https://github.com/r4m63/infobez-itmo/actions/workflows/ci.yml)

@@ -1,43 +1,26 @@
 package com.itmo.infobezitmo;
 
-import com.nimbusds.jose.jwk.source.ImmutableSecret;
-import com.itmo.infobezitmo.model.Post;
 import jakarta.annotation.PostConstruct;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
-import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.JwsHeader;
-import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
-import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
-import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.HtmlUtils;
 
-import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -74,56 +57,28 @@ public class ApiController {
     private final Map<String, String> users;
     private final String issuer;
     private final long ttlSeconds;
-    private final SecretKey jwtKey;
-    private final NimbusJwtEncoder jwtEncoder;
+    private final JwtEncoder jwtEncoder;
 
     public ApiController(PostRepository posts,
+                         JwtEncoder jwtEncoder,
                          @Value("${app.demo.admin-password}") String adminPassword,
                          @Value("${app.demo.user-password}") String userPassword,
-                         @Value("${app.jwt.secret}") String secret,
                          @Value("${app.jwt.issuer}") String issuer,
                          @Value("${app.jwt.ttl}") Duration ttl) {
         this.posts = posts;
+        this.jwtEncoder = jwtEncoder;
         this.users = Map.of("admin", passwords.encode(adminPassword),
                 "user", passwords.encode(userPassword));
         this.issuer = issuer;
         this.ttlSeconds = ttl.toSeconds();
-        this.jwtKey = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
-        this.jwtEncoder = new NimbusJwtEncoder(new ImmutableSecret<>(jwtKey));
     }
 
     @PostConstruct
     void init() {
-        if (jwtKey.getEncoded().length < 32) {
-            throw new IllegalStateException("JWT_SECRET must be at least 32 bytes");
-        }
         if (posts.count() == 0) {
             posts.save(new Post("Первый пост", "Данные доступны только по валидному JWT.", "admin"));
             posts.save(new Post("Второй пост", "Пароли хранятся в виде bcrypt-хешей.", "user"));
         }
-    }
-
-    @Bean
-    NimbusJwtDecoder jwtDecoder() {
-        NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(jwtKey)
-                .macAlgorithm(MacAlgorithm.HS256).build();
-        decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(issuer));
-        return decoder;
-    }
-
-    @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, NimbusJwtDecoder decoder) throws Exception {
-        return http
-                .csrf(csrf -> csrf.disable())
-                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/login").permitAll()
-                        .anyRequest().authenticated())
-                .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> jwt.decoder(decoder)))
-                .headers(headers -> headers
-                        .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'none'; frame-ancestors 'none'"))
-                        .contentTypeOptions(c -> { }))
-                .build();
     }
 
     @PostMapping("/auth/login")
