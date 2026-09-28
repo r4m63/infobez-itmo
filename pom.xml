@@ -16,13 +16,10 @@
 
     <properties>
         <java.version>25</java.version>
-        <!-- Переопределение версии из Spring Boot BOM: 11.0.24 содержит CVE-2026-65182/65905/68525 (найдено Trivy). -->
         <tomcat.version>11.0.25</tomcat.version>
         <spotbugs-plugin.version>4.9.6.0</spotbugs-plugin.version>
         <findsecbugs.version>1.14.0</findsecbugs.version>
         <dependency-check.version>12.1.9</dependency-check.version>
-        <!-- Пустое значение = без ключа; в CI передаётся через -Dnvd.api.key -->
-        <nvd.api.key></nvd.api.key>
     </properties>
 
     <dependencies>
@@ -34,7 +31,6 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
-        <!-- Библиотека Nimbus JOSE+JWT для подписи и проверки JWT (JwtEncoder / JwtDecoder). -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
@@ -47,7 +43,6 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
-        <!-- Встроенная БД: Docker и внешний сервер не нужны. -->
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
@@ -68,7 +63,6 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
 
-            <!-- SAST: SpotBugs + правила безопасности Find Security Bugs. -->
             <plugin>
                 <groupId>com.github.spotbugs</groupId>
                 <artifactId>spotbugs-maven-plugin</artifactId>
@@ -90,19 +84,16 @@
                 </configuration>
             </plugin>
 
-            <!-- SCA: OWASP Dependency-Check — поиск известных CVE в зависимостях. -->
             <plugin>
                 <groupId>org.owasp</groupId>
                 <artifactId>dependency-check-maven</artifactId>
                 <version>${dependency-check.version}</version>
                 <configuration>
-                    <!-- Сборка падает на уязвимостях High и Critical (CVSS >= 7). -->
                     <failBuildOnCVSS>7</failBuildOnCVSS>
                     <formats>
                         <format>HTML</format>
                         <format>JSON</format>
                     </formats>
-                    <nvdApiKey>${nvd.api.key}</nvdApiKey>
                 </configuration>
             </plugin>
         </plugins>

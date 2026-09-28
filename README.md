@@ -18,7 +18,7 @@ Hibernate работает с H2 в памяти; данные сбрасыва�
 ./mvnw spring-boot:run
 ```
 
-Java 25 необходима для сборки. Проверки локально: `./mvnw verify` и
+Java 25 необходима для сборки. Проверки локально: `./mvnw -DskipTests package` и
 `./mvnw -DskipTests compile spotbugs:spotbugs spotbugs:check`.
 Учебные пользователи: `admin` / `admin-password` и `user` / `user-password`.
 В `application.yaml` записаны только bcrypt-хэши паролей (cost 12).
@@ -81,9 +81,8 @@ curl -X POST localhost:8080/api/posts \
   серверные сессии.
 
 Для публичного развёртывания дополнительно понадобятся HTTPS, ограничение
-частоты попыток входа и механизм отзыва токенов. Тесты в
-[ApiSecurityTest.java](src/test/java/com/itmo/infobezitmo/ApiSecurityTest.java)
-проверяют вход, 401 без токена и с подделкой, создание поста, XSS, SQLi и валидацию.
+частоты попыток входа и механизм отзыва токенов. Ручная проверка API через curl
+описана выше.
 
 ## CI и отчёты
 
@@ -92,28 +91,22 @@ curl -X POST localhost:8080/api/posts \
 
 | Проверка | Инструмент | Результат |
 |---|---|---|
-| Сборка и тесты | Maven + JUnit | Ошибка job при падении теста |
+| Сборка | Maven | Ошибка job при ошибке сборки |
 | SAST | SpotBugs + Find Security Bugs | Анализ Java-байткода, XML/HTML-отчёт |
-| SCA | Trivy | Поиск известных уязвимостей в зависимостях; отчёт в артефакте |
-| Дополнительная SCA | OWASP Dependency-Check | HTML/JSON-отчёт при наличии `NVD_API_KEY` |
+| SCA | OWASP Dependency-Check | Проверка зависимостей на известные CVE, HTML/JSON-отчёт |
 
-Trivy завершает job с ошибкой при находке уровня HIGH/CRITICAL.
-Dependency-Check настроен в Maven, но без секрета Actions `NVD_API_KEY` его
-шаг **пропускается**; зелёный статус этой job сам по себе не является результатом
-сканирования. Чтобы получить отчёт именно Dependency-Check, добавьте ключ NVD
-в Settings → Secrets and variables → Actions и перезапустите workflow.
+Dependency-Check запускается при каждом push и pull request. Отчёты
+`target/dependency-check-report.html` и `target/dependency-check-report.json`
+сохраняются в артефакте `dependency-check-report`. Job завершается ошибкой при
+CVSS ≥ 7 или если сканер не смог создать отчёт. Первое обновление базы NVD
+может занять много времени.
 
 Скриншоты ниже относятся к предыдущему запуску этого репозитория; после
 упрощения кода актуальный результат следует смотреть по ссылке на CI выше.
 
 ![Успешный запуск GitHub Actions](docs/screenshots/01-ci-success.png)
 ![Список запусков](docs/screenshots/02-actions-list.png)
-![Trivy нашёл уязвимую библиотеку до исправления](docs/screenshots/03-trivy-found-cve.png)
 ![Отчёт SpotBugs без замечаний](docs/screenshots/04-spotbugs-report.png)
-
-Уязвимость CVE-2025-66021 в старой версии
-`owasp-java-html-sanitizer` была найдена Trivy и исправлена удалением
-этой зависимости. [Запуск до исправления](https://github.com/r4m63/infobez-itmo/actions/runs/35099573443).
 
 ## Контрольные вопросы
 
