@@ -16,9 +16,3 @@ app:
   demo:
     admin-password-hash: '$2y$12$9Qg7FRBUlJdPZbH1B5qrcu96vvltsHZTvGp7dKcFr46wBRWpbNFqC'
     user-password-hash: '$2y$12$WaLt3WVLuz9hrCHuyvtVoOmf4eehDmwtw6nKRJxVPV0AuBLGieZ6S'
-
-server:
-  error:
-    include-message: never
-    include-stacktrace: never
-    include-binding-errors: never

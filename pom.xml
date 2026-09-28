@@ -76,7 +76,6 @@
                 <configuration>
                     <effort>Max</effort>
                     <threshold>Medium</threshold>
-                    <excludeFilterFile>spotbugs-exclude.xml</excludeFilterFile>
                     <includeTests>false</includeTests>
                     <failOnError>true</failOnError>
                     <xmlOutput>true</xmlOutput>
@@ -104,9 +103,6 @@
                         <format>JSON</format>
                     </formats>
                     <nvdApiKey>${nvd.api.key}</nvdApiKey>
-                    <suppressionFiles>
-                        <suppressionFile>dependency-check-suppressions.xml</suppressionFile>
-                    </suppressionFiles>
                 </configuration>
             </plugin>
         </plugins>
