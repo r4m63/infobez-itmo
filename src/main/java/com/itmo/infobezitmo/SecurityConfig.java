@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -16,20 +17,19 @@ import org.springframework.security.web.SecurityFilterChain;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 
 @Configuration(proxyBeanMethods = false)
 public final class SecurityConfig {
 
+    private static final SecureRandom RANDOM = new SecureRandom();
+
     private final SecretKey jwtKey;
     private final String issuer;
 
-    public SecurityConfig(@Value("${app.jwt.secret}") String secret,
-                          @Value("${app.jwt.issuer}") String issuer) {
-        byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
-        if (keyBytes.length < 32) {
-            throw new IllegalStateException("JWT_SECRET must be at least 32 bytes");
-        }
+    public SecurityConfig(@Value("${app.jwt.issuer}") String issuer) {
+        byte[] keyBytes = new byte[32];
+        RANDOM.nextBytes(keyBytes);
         this.jwtKey = new SecretKeySpec(keyBytes, "HmacSHA256");
         this.issuer = issuer;
     }
@@ -50,7 +50,7 @@ public final class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, JwtDecoder decoder) throws Exception {
         return http
-                .csrf(csrf -> csrf.disable())
+                .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/login").permitAll()

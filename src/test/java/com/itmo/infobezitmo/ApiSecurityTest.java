@@ -7,17 +7,11 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@TestPropertySource(properties = {
-        "app.jwt.secret=test-secret-value-that-is-long-enough-32-chars",
-        "app.demo.admin-password=Admin-test-password",
-        "app.demo.user-password=User-test-password"
-})
 class ApiSecurityTest {
 
     @LocalServerPort
@@ -32,7 +26,7 @@ class ApiSecurityTest {
 
     @Test
     void loginReturnsJwt() {
-        String token = login("admin", "Admin-test-password");
+        String token = login("admin", "admin-password");
         assertThat(token).isNotBlank();
         assertThat(token.split("\\.")).hasSize(3);
     }
@@ -62,7 +56,7 @@ class ApiSecurityTest {
     @Test
     void dataWithTokenIsAvailable() {
         client.get().uri("/api/data")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + login("user", "User-test-password"))
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + login("user", "user-password"))
                 .exchange().expectStatus().isOk()
                 .expectBody().jsonPath("$.items").isArray();
     }
@@ -77,7 +71,7 @@ class ApiSecurityTest {
     @Test
     void createPostTakesAuthorFromToken() {
         client.post().uri("/api/posts")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + login("user", "User-test-password"))
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + login("user", "user-password"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {"title":"Заголовок","content":"Текст"}""")
@@ -88,7 +82,7 @@ class ApiSecurityTest {
     @Test
     void htmlInResponseIsEscaped() {
         client.post().uri("/api/posts")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + login("user", "User-test-password"))
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + login("user", "user-password"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {"title":"<script>alert(1)</script>","content":"<img src=x onerror=alert(1)>"}""")
@@ -101,7 +95,7 @@ class ApiSecurityTest {
     @Test
     void sqlInjectionInSearchIsHarmless() {
         client.get().uri("/api/data?query=%27%20OR%20%271%27%3D%271")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + login("user", "User-test-password"))
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + login("user", "user-password"))
                 .exchange().expectStatus().isOk()
                 .expectBody().jsonPath("$.total").isEqualTo(0);
     }
@@ -109,7 +103,7 @@ class ApiSecurityTest {
     @Test
     void invalidPayloadIsBadRequest() {
         client.post().uri("/api/posts")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + login("user", "User-test-password"))
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + login("user", "user-password"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                         {"title":"","content":""}""")

@@ -11,12 +11,11 @@ spring:
     open-in-view: false
 app:
   jwt:
-    secret: ${JWT_SECRET}
     issuer: infobez-itmo
     ttl: 15m
   demo:
-    admin-password: ${DEMO_ADMIN_PASSWORD}
-    user-password: ${DEMO_USER_PASSWORD}
+    admin-password-hash: '$2y$12$9Qg7FRBUlJdPZbH1B5qrcu96vvltsHZTvGp7dKcFr46wBRWpbNFqC'
+    user-password-hash: '$2y$12$WaLt3WVLuz9hrCHuyvtVoOmf4eehDmwtw6nKRJxVPV0AuBLGieZ6S'
 
 server:
   error:

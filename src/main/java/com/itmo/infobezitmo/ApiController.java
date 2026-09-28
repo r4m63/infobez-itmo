@@ -61,14 +61,13 @@ public class ApiController {
 
     public ApiController(PostRepository posts,
                          JwtEncoder jwtEncoder,
-                         @Value("${app.demo.admin-password}") String adminPassword,
-                         @Value("${app.demo.user-password}") String userPassword,
+                         @Value("${app.demo.admin-password-hash}") String adminPasswordHash,
+                         @Value("${app.demo.user-password-hash}") String userPasswordHash,
                          @Value("${app.jwt.issuer}") String issuer,
                          @Value("${app.jwt.ttl}") Duration ttl) {
         this.posts = posts;
         this.jwtEncoder = jwtEncoder;
-        this.users = Map.of("admin", passwords.encode(adminPassword),
-                "user", passwords.encode(userPassword));
+        this.users = Map.of("admin", adminPasswordHash, "user", userPasswordHash);
         this.issuer = issuer;
         this.ttlSeconds = ttl.toSeconds();
     }
@@ -83,8 +82,7 @@ public class ApiController {
 
     @PostMapping("/auth/login")
     public Token login(@Valid @RequestBody LoginRequest request) {
-        String hash = users.getOrDefault(request.username(), users.get("admin"));
-        boolean correctPassword = passwords.matches(request.password(), hash);
+        boolean correctPassword = passwords.matches(request.password(), users.getOrDefault(request.username(), users.get("admin")));
         if (!correctPassword || !users.containsKey(request.username())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid username or password");
         }

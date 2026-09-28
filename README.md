@@ -15,17 +15,14 @@ Hibernate работает с H2 в памяти; данные сбрасыва�
 ## Запуск
 
 ```bash
-cp .env.example .env
-# Замените JWT_SECRET случайной строкой: openssl rand -base64 48
-# Задайте свои DEMO_ADMIN_PASSWORD и DEMO_USER_PASSWORD в .env
-set -a && source .env && set +a
 ./mvnw spring-boot:run
 ```
 
 Java 25 необходима для сборки. Проверки локально: `./mvnw verify` и
 `./mvnw -DskipTests compile spotbugs:spotbugs spotbugs:check`.
-При старте создаются пользователи `admin` и `user`; их пароли берутся из
-переменных окружения и сразу хэшируются bcrypt (cost 12).
+Учебные пользователи: `admin` / `admin-password` и `user` / `user-password`.
+В `application.yaml` записаны только bcrypt-хэши паролей (cost 12).
+Эти публичные учётные данные предназначены только для локальной демонстрации.
 
 ## API
 
@@ -41,7 +38,7 @@ curl -i localhost:8080/api/data
 
 curl -i -X POST localhost:8080/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"<значение DEMO_ADMIN_PASSWORD>"}'
+  -d '{"username":"admin","password":"admin-password"}'
 # 200 OK: {"accessToken":"...","tokenType":"Bearer","expiresIn":900}
 
 TOKEN='<accessToken из ответа>'
@@ -64,7 +61,9 @@ curl -X POST localhost:8080/api/posts \
   Например, `<script>` становится `&lt;script&gt;`. Также включены
   `Content-Security-Policy` и `X-Content-Type-Options: nosniff`.
 - **Аутентификация:** пароль проверяется по bcrypt-хэшу; при успехе выдаётся JWT,
-  подписанный HS256. Секрет берётся из `JWT_SECRET`, срок действия — 15 минут.
+  подписанный HS256. Случайный ключ создаётся при каждом запуске приложения;
+  срок действия токена — 15 минут. После перезапуска ранее выданные токены
+  становятся недействительными.
   Стандартный фильтр Spring Security проверяет подпись, срок и издателя токена.
   Только `/auth/login` открыт без токена. Автор нового поста берётся из
   проверенной учётной записи, а не из JSON запроса.
