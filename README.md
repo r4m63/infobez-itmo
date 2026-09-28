@@ -5,7 +5,7 @@ bcrypt-хешированием паролей, защитой от SQL-инъе
 
 - Репозиторий: <https://github.com/r4m63/infobez-itmo>
 - Pipeline: <https://github.com/r4m63/infobez-itmo/actions/workflows/ci.yml>
-- Последний успешный запуск pipeline: <https://github.com/r4m63/infobez-itmo/actions/runs/35107799931>
+- Проверенный успешный запуск pipeline для текущего кода: <https://github.com/r4m63/infobez-itmo/actions/runs/35109011447>
 - Все успешные запуски на
   `main`: <https://github.com/r4m63/infobez-itmo/actions/workflows/ci.yml?query=branch%3Amain+is%3Asuccess>
 
@@ -32,10 +32,10 @@ set -a && source .env && set +a
 При старте создаются пользователи `admin` и `user` с паролями из `DEMO_ADMIN_PASSWORD` / `DEMO_USER_PASSWORD`
 (хранятся только bcrypt-хеши). Тесты: `./mvnw verify`.
 
-Код намеренно простой: **один контроллер
-** ([ApiController](src/main/java/com/itmo/infobezitmo/controller/ApiController.java)),
-**один сервис** ([ApiService](src/main/java/com/itmo/infobezitmo/service/ApiService.java)) и
-**один репозиторий** ([PostRepository](src/main/java/com/itmo/infobezitmo/repository/PostRepository.java)).
+Код намеренно простой: **один контроллер**
+([ApiController](src/main/java/com/itmo/infobezitmo/ApiController.java)),
+**один сервис** ([ApiService](src/main/java/com/itmo/infobezitmo/ApiService.java)) и
+**один репозиторий** ([PostRepository](src/main/java/com/itmo/infobezitmo/PostRepository.java)).
 
 ## API
 
@@ -94,7 +94,7 @@ Spring Data JPA / Hibernate:
 
 - `PostRepository.findAllByOrderByCreatedAtDesc()` — запрос генерируется Spring Data по имени метода.
 - `PostRepository.searchByTitle(...)` — JPQL с именованным параметром `:query`
-  ([PostRepository.java](src/main/java/com/itmo/infobezitmo/repository/PostRepository.java)). Hibernate передаёт
+  ([PostRepository.java](src/main/java/com/itmo/infobezitmo/PostRepository.java)). Hibernate передаёт
   значение отдельно от текста запроса, поэтому нагрузка `' OR '1'='1` ищется как обычная строка и
   возвращает пустой список (см. тест `sqlInjectionInSearchIsHarmless`).
 - Сортировка задана в коде, имя поля от пользователя не принимается; длина `query` ограничена
@@ -104,7 +104,7 @@ Spring Data JPA / Hibernate:
 
 Все пользовательские строки, возвращаемые API, экранируются встроенной функцией фреймворка
 `HtmlUtils.htmlEscape` при формировании DTO ответа
-(`ApiService.PostDto.from` в [ApiService.java](src/main/java/com/itmo/infobezitmo/service/ApiService.java)):
+(`ApiService.PostDto.from` в [ApiService.java](src/main/java/com/itmo/infobezitmo/ApiService.java)):
 `<script>alert(1)</script>` возвращается как `&lt;script&gt;alert(1)&lt;/script&gt;`
 (тест `htmlInResponseIsEscaped`). Дополнительно:
 
@@ -120,6 +120,8 @@ Spring Data JPA / Hibernate:
 [JwtService](src/main/java/com/itmo/infobezitmo/security/JwtService.java) выпускает токен HS256 с claims
 `iss`, `sub` (логин), `iat`, `exp` (TTL 15 минут), `roles`. Секрет подписи берётся только из переменной
 окружения `JWT_SECRET` и проверяется на длину >= 32 символов; значения по умолчанию нет.
+Для реального запуска секрет нужно генерировать случайно (`openssl rand -base64 48`): одна только
+длина строки не гарантирует её непредсказуемость.
 
 **Middleware проверки токена.**
 [JwtAuthenticationFilter](src/main/java/com/itmo/infobezitmo/security/JwtAuthenticationFilter.java) —
@@ -137,7 +139,8 @@ Spring Data JPA / Hibernate:
 
 **Дополнительно.** Одинаковый ответ для неизвестного логина и неверного пароля
 (`hideUserNotFoundExceptions`), stateless-сессии, ошибки отдаются в формате ProblemDetail без стектрейсов,
-логины в логах очищаются от `\r\n` (log forging).
+логины в логах очищаются от `\r\n` (log forging). Это учебное API: для публичного сервиса также
+потребовались бы HTTPS, ограничение частоты входа и управление отзывом токенов.
 
 ## CI/CD pipeline
 
@@ -148,11 +151,16 @@ Spring Data JPA / Hibernate:
 |------------------------|------|-------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Build & tests          | —    | Maven, JUnit                  | `./mvnw verify`: сборка и 10 интеграционных тестов безопасности                                                                                                                                |
 | SAST                   | SAST | SpotBugs + Find Security Bugs | Статический анализ байткода (effort Max, threshold Medium); job падает при любой находке. Отчёт `spotbugs.html` в артефактах                                                                   |
-| SCA — Dependency-Check | SCA  | OWASP Dependency-Check        | Поиск CVE в зависимостях, `failBuildOnCVSS=7`; HTML/JSON-отчёт в артефактах. Требует секрет `NVD_API_KEY` (без него NVD API с GitHub-раннеров не отвечает, шаг пропускается с предупреждением) |
+| SCA — Dependency-Check | SCA  | OWASP Dependency-Check        | Поиск CVE в зависимостях, `failBuildOnCVSS=7`; HTML/JSON-отчёт в артефактах. Запускается только при наличии секрета `NVD_API_KEY`; без него сканирование пропускается с предупреждением |
 | SCA — Trivy            | SCA  | Trivy                         | Сканирует `pom.xml` на HIGH/CRITICAL CVE, а также секреты и мисконфигурации; отчёт в артефактах и в Job Summary                                                                                |
 
 Дополнительно включён Dependabot ([.github/dependabot.yml](.github/dependabot.yml)) — еженедельные PR с
 обновлениями зависимостей Maven и GitHub Actions.
+
+В проверенном запуске `NVD_API_KEY` не задан: job Dependency-Check зелёный, но сам сканер
+**не запускался и отчёта от него нет**. Обязательную SCA-проверку выполняет Trivy; его job
+завершается ошибкой при находках уровня HIGH/CRITICAL. Для дополнительного отчёта Dependency-Check
+нужно получить бесплатный API-ключ NVD и записать его в секрет Actions `NVD_API_KEY`.
 
 ### Найденная и исправленная уязвимость
 
@@ -178,8 +186,8 @@ Total: 1 (HIGH: 1, CRITICAL: 0)
 └──────────────────────────────────────────────────────────────┴────────────────┴──────────┴────────┴───────────────────┴───────────────┴──────────────────────────────────────────────────────────────┘
 ```
 
-Отчёт Trivy в текущем успешном запуске
-([#37](https://github.com/r4m63/infobez-itmo/actions/runs/35107799931)):
+Отчёт Trivy в проверенном успешном запуске
+([#38](https://github.com/r4m63/infobez-itmo/actions/runs/35109011447)):
 
 ```
 Report Summary
@@ -198,7 +206,7 @@ Legend:
 
 ### Скриншоты отчётов
 
-Успешный запуск pipeline (все четыре job зелёные):
+Успешный запуск pipeline (все четыре job зелёные; Dependency-Check пропущен без ключа NVD):
 
 ![CI success](docs/screenshots/01-ci-success.png)
 
@@ -218,10 +226,10 @@ Trivy: найдена уязвимость CVE-2025-66021 в зависимос�
 
 ```
 src/main/java/com/itmo/infobezitmo/
-├── controller/ApiController.java        один контроллер: POST /auth/login, GET /api/data, POST /api/posts
-├── controller/ApiExceptionHandler.java  единый формат ошибок без стектрейсов
-├── service/ApiService.java              один сервис: логин (bcrypt + JWT), выборка, создание; DTO с экранированием
-├── repository/PostRepository.java       один репозиторий: параметризованные запросы (защита от SQLi)
+├── ApiController.java                   один контроллер: POST /auth/login, GET /api/data, POST /api/posts
+├── ApiExceptionHandler.java             единый формат ошибок без стектрейсов
+├── ApiService.java                      один сервис: логин (bcrypt + JWT), выборка, создание; DTO с экранированием
+├── PostRepository.java                  один репозиторий: параметризованные запросы (защита от SQLi)
 ├── model/Post.java                      сущность H2
 ├── security/JwtService.java             выпуск и проверка JWT (HS256)
 ├── security/JwtAuthenticationFilter.java middleware: проверяет Bearer-токен на каждом запросе
@@ -242,9 +250,9 @@ SHA-256 — быстрый хеш общего назначения: на GPU с
 
 **2. Разница между SAST и DAST.**
 SAST (Static Application Security Testing) анализирует исходный код или байткод без запуска
-приложения: находит опасные конструкции (конкатенация SQL, слабая криптография, отключённый CSRF),
+приложения: находит подозрительные конструкции (например, конкатенацию SQL или слабую криптографию),
 работает рано, на каждом коммите, знает точную строку кода, но даёт ложные срабатывания и не видит
-проблем конфигурации и окружения. DAST (Dynamic AST) тестирует уже запущенное приложение снаружи как
+проблем конфигурации и окружения. DAST (Dynamic Application Security Testing) тестирует уже запущенное приложение снаружи как
 злоумышленник (OWASP ZAP, Burp): отправляет запросы с нагрузками и смотрит на ответы. Он не зависит
 от языка и находит реальные эксплуатируемые проблемы, но не указывает на строку кода, работает
 позже и медленнее. В этой работе используется SAST (SpotBugs/FindSecBugs); SCA-сканеры дополняют его
