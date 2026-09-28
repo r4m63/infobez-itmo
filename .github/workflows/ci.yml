@@ -71,6 +71,8 @@ jobs:
           distribution: temurin
           java-version: '25'
       - name: Scan dependencies with OWASP Dependency-Check
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
         run: ./mvnw $MAVEN_ARGS -DskipTests dependency-check:check
       - name: Add Dependency-Check results to job summary
         if: always()

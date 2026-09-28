@@ -94,6 +94,7 @@
                         <format>HTML</format>
                         <format>JSON</format>
                     </formats>
+                    <nvdApiKeyEnvironmentVariable>NVD_API_KEY</nvdApiKeyEnvironmentVariable>
                 </configuration>
             </plugin>
         </plugins>
