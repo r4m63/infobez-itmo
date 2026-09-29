@@ -19,7 +19,7 @@
         <tomcat.version>11.0.25</tomcat.version>
         <spotbugs-plugin.version>4.9.6.0</spotbugs-plugin.version>
         <findsecbugs.version>1.14.0</findsecbugs.version>
-        <dependency-check.version>12.1.9</dependency-check.version>
+        <dependency-check.version>12.2.2</dependency-check.version>
     </properties>
 
     <dependencies>
