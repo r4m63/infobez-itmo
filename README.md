@@ -10,7 +10,7 @@ Hibernate работает с H2 в памяти; данные сбрасыва�
 
 - [Публичный репозиторий](https://github.com/r4m63/infobez-itmo)
 - [GitHub Actions](https://github.com/r4m63/infobez-itmo/actions/workflows/ci.yml)
-- [Успешные запуски CI](https://github.com/r4m63/infobez-itmo/actions/workflows/ci.yml?query=branch%3Amain+is%3Asuccess)
+- [Последний проверенный успешный запуск CI](https://github.com/r4m63/infobez-itmo/actions/runs/36596932895)
 
 ## Запуск
 
@@ -102,12 +102,17 @@ CVSS ≥ 7 или если сканер не смог создать отчёт.
 может занять много времени. В CI сканер получает `NVD_API_KEY` из секрета GitHub
 Actions, чтобы быстрее загружать данные NVD; значение ключа не хранится в коде.
 
-Скриншоты ниже относятся к предыдущему запуску этого репозитория; после
-упрощения кода актуальный результат следует смотреть по ссылке на CI выше.
+В [успешном запуске](https://github.com/r4m63/infobez-itmo/actions/runs/36596932895)
+SpotBugs и Dependency-Check завершились успешно. Dependency-Check проверил
+95 зависимостей (49 уникальных) и не нашёл известных уязвимостей. Дополнительный
+анализатор Sonatype OSS Index был пропущен из-за отсутствия его учётных данных;
+проверка по NVD выполнена. Первые три скриншота относятся к более раннему
+запуску, последний — к указанному выше.
 
 ![Успешный запуск GitHub Actions](docs/screenshots/01-ci-success.png)
 ![Список запусков](docs/screenshots/02-actions-list.png)
 ![Отчёт SpotBugs без замечаний](docs/screenshots/04-spotbugs-report.png)
+![Отчёт OWASP Dependency-Check: 0 найденных уязвимостей](docs/screenshots/05-dependency-check-report.png)
 
 ## Контрольные вопросы
 
