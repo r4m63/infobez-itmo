@@ -1,46 +1,39 @@
-$ curl -i localhost:8080/api/data                      # без токена -> должно быть 401
-HTTP/1.1 401 
+# Ручная проверка API (запуск 30.09.2026, ./mvnw spring-boot:run)
 
-$ curl -i -X POST localhost:8080/auth/login -H "Content-Type: application/json" -d '{"username":"admin","password":"wrong"}'   # неверный пароль -> 401
-HTTP/1.1 401 
+$ curl -i localhost:8080/api/data                                   # без токена -> 401
+HTTP/1.1 401
+
+$ curl -i -X POST localhost:8080/auth/login -H 'Content-Type: application/json' \
+       -d '{"username":"admin","password":"wrong"}'                  # неверный пароль -> 401
+HTTP/1.1 401
 {"detail":"Invalid username or password","instance":"/auth/login","status":401,"title":"Unauthorized"}
 
-$ curl -X POST localhost:8080/auth/login -H "Content-Type: application/json" -d '{"username":"admin","password":"<пароль>"}'   # успешный логин -> JWT
-{"accessToken":"eyJhbGciOiJIUzI1NiJ9.eyJp...","tokenType":"Bearer","expiresIn":900}
+$ curl -X POST localhost:8080/auth/login -H 'Content-Type: application/json' \
+       -d '{"username":"admin","password":"admin-password"}'         # успешный вход -> JWT
+{"accessToken":"eyJhbGciOiJIUzI1NiJ9.eyJpc3MiOi...","tokenType":"Bearer","expiresIn":900}
 
-$ curl localhost:8080/api/data -H "Authorization: Bearer $TOKEN"   # с токеном -> 200
-{
-  "items": [
-    {
-      "id": 2,
-      "title": "Второй пост",
-      "content": "Пароли хранятся в виде bcrypt-хешей.",
-      "author": "user",
-      "createdAt": "2026-09-16T14:29:30.238991Z"
-    },
-    {
-      "id": 1,
-      "title": "Первый пост",
-      "content": "Данные доступны только по валидному JWT.",
-      "author": "admin",
-      "createdAt": "2026-09-16T14:29:30.223072Z"
-    }
-  ],
-  "total": 2
-}
+$ TOKEN='<accessToken из ответа>'
 
-$ curl -X POST localhost:8080/api/posts -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-       -d '{"title":"<script>alert(1)</script>Тест","content":"<img src=x onerror=alert(1)>текст"}'   # XSS-нагрузка
-{
-  "id": 3,
-  "title": "&lt;script&gt;alert(1)&lt;/script&gt;Тест",
-  "content": "&lt;img src=x onerror=alert(1)&gt;текст",
-  "author": "admin",
-  "createdAt": "2026-09-16T14:29:32.426977Z"
-}
+$ curl localhost:8080/api/data -H "Authorization: Bearer $TOKEN"    # с токеном -> 200
+{"items":[{"id":2,"title":"Второй пост","content":"Пароли хранятся в виде bcrypt-хешей.","author":"user","createdAt":"2026-09-30T17:07:34.517511Z"},{"id":1,"title":"Первый пост","content":"Данные доступны только по валидному JWT.","author":"admin","createdAt":"2026-09-30T17:07:34.500504Z"}],"total":2}
 
-$ curl "localhost:8080/api/data?query=' OR '1'='1" -H "Authorization: Bearer $TOKEN"   # SQLi-нагрузка -> пусто, не ошибка
+$ curl -i -X POST localhost:8080/api/posts -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+       -d '{"title":"<script>alert(1)</script>Тест","content":"<img src=x onerror=alert(1)>текст"}'   # XSS-нагрузка -> 201, экранировано
+HTTP/1.1 201
+{"id":3,"title":"&lt;script&gt;alert(1)&lt;/script&gt;Тест","content":"&lt;img src=x onerror=alert(1)&gt;текст","author":"admin","createdAt":"2026-09-30T17:07:46.117202Z"}
+
+$ curl -G localhost:8080/api/data --data-urlencode "query=' OR '1'='1" \
+       -H "Authorization: Bearer $TOKEN"                             # SQLi-нагрузка -> пустой список, не ошибка
 {"items":[],"total":0}
 
-$ curl -i localhost:8080/api/data -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiJ9.forged"   # поддельный токен -> 401
-HTTP/1.1 401 
+$ curl -i localhost:8080/api/data -H "Authorization: Bearer <токен с изменённой подписью>"   # поддельный токен -> 401
+HTTP/1.1 401
+
+$ curl -i -X POST localhost:8080/api/posts -H 'Content-Type: application/json' \
+       -d '{"title":"x","content":"y"}'                              # создание поста без токена -> 401
+HTTP/1.1 401
+
+$ curl -I localhost:8080/api/data -H "Authorization: Bearer $TOKEN"  # заголовки безопасности
+X-Content-Type-Options: nosniff
+Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+Content-Security-Policy: default-src 'none'; frame-ancestors 'none'
