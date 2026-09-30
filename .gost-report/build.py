@@ -5,6 +5,7 @@ README.md, ссылка на последний успешный запуск pi
 прямо из файла, поэтому отчёт всегда совпадает с репозиторием. Титульный лист
 содержит только поля из требований к отчёту.
 """
+import copy
 import dataclasses
 import os
 import re
@@ -14,6 +15,9 @@ from datetime import datetime, timezone
 os.environ["GOST_REPORT_CONFIG"] = os.devnull
 
 from docx import Document
+from docx.opc.constants import RELATIONSHIP_TYPE as RT
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 from gost_report import ITMO_PROFILE, Report, TitleConfig, paths
 
 STUDENT = "Таджеддинов Р. Э."
@@ -44,11 +48,20 @@ r = Report(TitleConfig(
 ), profile=profile)
 
 # ---------------------------------------------------------------- README.md -> отчёт
+# Текст ссылки -> адрес. Заполняется при разборе README, после сборки такие
+# фрагменты превращаются в гиперссылки Word.
+LINKS = {}
+
+
+def link(text: str, target: str) -> str:
+    url = target if target.startswith("http") else f"{REPO}/blob/main/{target}"
+    LINKS[text] = url
+    return text
+
+
 INLINE_RULES = [
     (re.compile(r"!\[[^\]]*\]\([^)]*\)"), ""),                          # картинки обрабатываются отдельно
-    (re.compile(r"\[([^\]]+)\]\((https?://[^)]+)\)"),
-     lambda m: m[2] if m[1] in m[2] else f"{m[1]} ({m[2]})"),           # внешняя ссылка: текст и адрес
-    (re.compile(r"\[([^\]]+)\]\([^)]+\)"), r"\1"),                       # ссылка на файл репозитория: текст
+    (re.compile(r"\[([^\]]+)\]\(([^)]+)\)"), lambda m: link(m[1], m[2])),  # ссылка: остаётся текст
     (re.compile(r"<(https?://[^>]+)>"), r"\1"),
     (re.compile(r"\*\*([^*]+)\*\*"), r"\1"),
     (re.compile(r"`([^`]+)`"), r"\1"),
@@ -172,4 +185,50 @@ props.author = STUDENT
 props.last_modified_by = STUDENT
 props.title = f"Работа 1: {TITLE}"
 props.created = props.modified = datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def make_links_clickable(doc) -> None:
+    """Оборачивает адреса и тексты ссылок из README в гиперссылки Word."""
+    names = sorted(LINKS, key=len, reverse=True)
+    pattern = re.compile(r"https?://[^\s)]+[^\s).,]" +
+                         "".join(f"|{re.escape(n)}" for n in names))
+    for paragraph in doc.paragraphs:
+        for run in list(paragraph.runs):
+            texts = run._r.findall(qn("w:t"))
+            if len(texts) != 1 or len(run._r) > 2 or not pattern.search(run.text):
+                continue                        # только простые однострочные runs
+            text, pos = run.text, 0
+            for m in pattern.finditer(text):
+                if m.start() > pos:
+                    run._r.addprevious(_run_like(run, text[pos:m.start()]))
+                url = LINKS.get(m[0], m[0])
+                hyperlink = OxmlElement("w:hyperlink")
+                hyperlink.set(qn("r:id"), paragraph.part.relate_to(url, RT.HYPERLINK, is_external=True))
+                hyperlink.append(_run_like(run, m[0], link_style=True))
+                run._r.addprevious(hyperlink)
+                pos = m.end()
+            if pos < len(text):
+                run._r.addprevious(_run_like(run, text[pos:]))
+            run._r.getparent().remove(run._r)
+
+
+def _run_like(run, text: str, link_style: bool = False):
+    r = copy.deepcopy(run._r)
+    t = r.find(qn("w:t"))
+    t.text = text
+    t.set(qn("xml:space"), "preserve")
+    if link_style:
+        rpr = r.find(qn("w:rPr"))
+        if rpr is None:
+            rpr = OxmlElement("w:rPr")
+            r.insert(0, rpr)
+        color, underline = OxmlElement("w:color"), OxmlElement("w:u")
+        color.set(qn("w:val"), "0563C1")
+        underline.set(qn("w:val"), "single")
+        rpr.append(color)
+        rpr.append(underline)
+    return r
+
+
+make_links_clickable(doc)
 doc.save(out)
