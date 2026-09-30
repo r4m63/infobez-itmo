@@ -38,3 +38,4 @@ build/
 ### Office lock files ###
 ~$*
 *.gost-meta.json
+.DS_Store
