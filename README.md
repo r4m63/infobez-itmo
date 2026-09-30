@@ -202,10 +202,6 @@ curl -X POST localhost:8080/api/posts \
 
 ![Успешный запуск GitHub Actions](docs/screenshots/01-ci-success.png)
 
-**История запусков workflow.**
-
-![Список запусков](docs/screenshots/02-actions-list.png)
-
 **SAST, SpotBugs + Find Security Bugs: 0 замечаний.**
 
 ![Отчёт SpotBugs](docs/screenshots/04-spotbugs-report.png)

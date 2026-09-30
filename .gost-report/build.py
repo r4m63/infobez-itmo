@@ -200,12 +200,9 @@ r.text(f"Скриншоты сделаны для запуска #54 (комми
        "Отчёты SpotBugs и Dependency-Check взяты из артефактов этого запуска.")
 f_run = r.figure(str(SHOTS / "01-ci-success.png"),
                  "Успешный запуск pipeline в GitHub Actions")
-f_list = r.figure(str(SHOTS / "02-actions-list.png"),
-                  "История запусков workflow Build and Security Checks")
 r.text(f"{r.ref.on_figure(f_run, cap=True)} видно, что все три задачи "
        "завершились успешно, а в Job Summary задачи SAST указано 0 найденных "
-       f"проблем. {r.ref.on_figure(f_list, cap=True)} показана "
-       "история запусков: pipeline срабатывает на каждый push.")
+       "проблем.")
 f_sb = r.figure(str(SHOTS / "04-spotbugs-report.png"),
                 "Отчёт SpotBugs и Find Security Bugs из CI")
 r.text(f"{r.ref.on_figure(f_sb, cap=True)} приведён отчёт SAST: проанализирован "
