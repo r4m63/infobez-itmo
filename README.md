@@ -7,10 +7,7 @@ Find Security Bugs) и SCA (OWASP Dependency-Check).
 
 - Репозиторий: <https://github.com/r4m63/infobez-itmo>
 - Workflow: [Build and Security Checks](https://github.com/r4m63/infobez-itmo/actions/workflows/ci.yml)
-- Последний успешный запуск
-  pipeline: [#54, run 36620490824](https://github.com/r4m63/infobez-itmo/actions/runs/36620490824)
-  (все успешные
-  запуски: [фильтр is:success](https://github.com/r4m63/infobez-itmo/actions/workflows/ci.yml?query=is%3Asuccess))
+- Последний успешный запуск pipeline: <https://github.com/r4m63/infobez-itmo/actions/runs/36620490824/job/109584335296>
 
 ## Содержание
 
@@ -198,10 +195,10 @@ curl -X POST localhost:8080/api/posts \
 
 ## Отчёты SAST/SCA
 
-Все скриншоты относятся к [запуску #54](https://github.com/r4m63/infobez-itmo/actions/runs/36620490824)
+Все скриншоты относятся к [запуску #54](https://github.com/r4m63/infobez-itmo/actions/runs/36620490824/job/109584335296)
 (коммит `d3a069c`). Отчёты SpotBugs и Dependency-Check взяты из артефактов этого запуска.
 
-**Успешный запуск pipeline: все три job зелёные.**
+**Успешный запуск pipeline: все три job зелёные, в Job Summary SpotBugs найдено 0 проблем.**
 
 ![Успешный запуск GitHub Actions](docs/screenshots/01-ci-success.png)
 

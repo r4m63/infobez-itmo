@@ -37,3 +37,4 @@ build/
 
 ### Office lock files ###
 ~$*
+*.gost-meta.json

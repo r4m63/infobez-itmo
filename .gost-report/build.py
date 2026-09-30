@@ -7,8 +7,7 @@ os.environ["GOST_REPORT_CONFIG"] = os.devnull
 from gost_report import Report, TitleConfig, paths
 
 REPO = "https://github.com/r4m63/infobez-itmo"
-RUN_ID = "36620490824"
-RUN_URL = f"{REPO}/actions/runs/{RUN_ID}"
+RUN_URL = f"{REPO}/actions/runs/36620490824/job/109584335296"
 SHOTS = paths().root / "docs" / "screenshots"
 
 r = Report(TitleConfig(
@@ -197,14 +196,15 @@ r.code("- name: Analyze code with SpotBugs and Find Security Bugs\n"
 
 # ---------------------------------------------------------------- Отчёты
 r.h1("Отчёты SAST и SCA")
-r.text(f"Скриншоты сделаны для запуска #54 (коммит d3a069c). Отчёты SpotBugs "
-       f"и Dependency-Check взяты из артефактов этого запуска.")
+r.text(f"Скриншоты сделаны для запуска #54 (коммит d3a069c): {RUN_URL}. "
+       "Отчёты SpotBugs и Dependency-Check взяты из артефактов этого запуска.")
 f_run = r.figure(str(SHOTS / "01-ci-success.png"),
                  "Успешный запуск pipeline в GitHub Actions")
 f_list = r.figure(str(SHOTS / "02-actions-list.png"),
                   "История запусков workflow Build and Security Checks")
 r.text(f"{r.ref.on_figure(f_run, cap=True)} видно, что все три задачи "
-       f"завершились успешно. {r.ref.on_figure(f_list, cap=True)} показана "
+       "завершились успешно, а в Job Summary задачи SAST указано 0 найденных "
+       f"проблем. {r.ref.on_figure(f_list, cap=True)} показана "
        "история запусков: pipeline срабатывает на каждый push.")
 f_sb = r.figure(str(SHOTS / "04-spotbugs-report.png"),
                 "Отчёт SpotBugs и Find Security Bugs из CI")
@@ -251,7 +251,6 @@ r.code("$ curl -i localhost:8080/api/data\n"
 # ---------------------------------------------------------------- Pipeline link
 r.h1("Ссылка на последний успешный запуск pipeline")
 r.text(f"Запуск #54 workflow Build and Security Checks: {RUN_URL}.")
-r.text(f"Все успешные запуски: {REPO}/actions/workflows/ci.yml?query=is%3Asuccess.")
 
 # ---------------------------------------------------------------- Вопросы
 r.h1("Ответы на контрольные вопросы")
